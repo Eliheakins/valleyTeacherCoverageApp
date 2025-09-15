@@ -15,8 +15,23 @@ class TeacherCoverageApp:
         self.date = ""
         self.teacherObjects = teachers
 
+    def validate_and_proceed(self):
+        date_string = dpg.get_value("date_input")
+        try:
+            # Attempt to parse the date from the input string
+            datetime.date.fromisoformat(date_string)
+            self.date = date_string
+            # If the date is valid, call the method to proceed
+            self.receiveValues_and_stop()
+        except ValueError:
+            # Show a popup and don't stop the application
+            # Capture the ID of the new window
+            with dpg.window(label="Error", modal=True, no_resize=True, no_close=True) as popup_window:
+                dpg.add_text("Invalid date format. Please use YYYY-MM-DD.")
+                dpg.add_button(label="Ok", callback=lambda: dpg.delete_item(popup_window))
+
     def receiveValues_and_stop(self):
-        self.date = dpg.get_value("date_input")
+        # Now this method is only called after successful validation
         for name in self.teacherObjects.keys():
             self.teacherObjects[name].is_out = dpg.get_value(f"teacher_{name}")
         dpg.stop_dearpygui()
@@ -71,7 +86,7 @@ class TeacherCoverageApp:
                 dpg.add_input_text(source="date_input", width=250)
                 dpg.add_spacer(height=5)
 
-                dpg.add_button(label="Submit", callback=self.receiveValues_and_stop)
+                dpg.add_button(label="Submit", callback=self.validate_and_proceed)
 
         dpg.bind_item_theme("main_window", "my_custom_theme")
         dpg.set_primary_window("main_window", True)
@@ -83,19 +98,16 @@ class TeacherCoverageApp:
 
 def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     outputString = f"Date: {date}\n"
-    # Check if the file exists and is not empty before attempting to load
     if os.path.exists(coverage_tracker_json) and os.path.getsize(coverage_tracker_json) > 0:
         with open(coverage_tracker_json, 'r') as f:
             coverage_data = json.load(f)
     else:
         coverage_data = {}
 
-    # Ensure all teachers from the current list are in the coverage data
     for name in teachers.keys():
         if name not in coverage_data:
             coverage_data[name] = {'times_covered': 0, 'coverage_log': []}
 
-    # Identify teachers who are out and sort available teachers by times covered
     teachers_out = [name for name, teacher in teachers.items() if teacher.is_out]
     sorted_available_teachers = sorted([
         (name, data['times_covered']) for name, data in coverage_data.items()
@@ -106,7 +118,6 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
         outputString += f"{teacher_out_name}:\n"
         teacher_out_obj = teachers[teacher_out_name]
         for period in teacher_out_obj.periods_need_covered:
-            # Find the first available teacher who can cover the period
             assigned_teacher_name = None
             for name, _ in sorted_available_teachers:
                 if period in teachers[name].periods_available:
@@ -114,7 +125,6 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
                     break
 
             if assigned_teacher_name:
-                # Update times_covered and log the coverage event in the JSON data
                 outputString += f"  {period} {assigned_teacher_name}\n"
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
                 new_log_entry = {
@@ -132,10 +142,8 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
 
-    #write outputstring to a text file for date
     with open(f"coverage_{date}.txt", 'w') as f:
         f.write(outputString)
-
 
 def main():
     teacher_names = ["Alice", "Bob", "Charlie", "David", "Eva", "Frank"]
