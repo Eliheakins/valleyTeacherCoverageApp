@@ -1,15 +1,24 @@
 import dearpygui.dearpygui as dpg
 import datetime
 
+class Teacher:
+    def __init__(self, name, periods_need_covered, periods_available):
+        self.name = name
+        self.is_out = False
+        self.periods_need_covered = periods_need_covered
+        self.periods_available = periods_available
+
 class TeacherCoverageApp:
     def __init__(self, teachers):
-        self.teachers = teachers
         self.date = ""
-        self.is_teacher_out = [False] * len(teachers)
+        # dictionary mapping teacher name to teacher object
+        self.teacherObjects = teachers
 
     def receiveValues_and_stop(self):
         self.date = dpg.get_value("date_input")
-        self.is_teacher_out = [dpg.get_value(f"teacher_{i}") for i in range(len(self.teachers))]
+        # Iterate through the dictionary keys to ensure correct mapping
+        for name in self.teacherObjects.keys():
+            self.teacherObjects[name].is_out = dpg.get_value(f"teacher_{name}")
         dpg.stop_dearpygui()
 
     def create_gui(self):
@@ -29,15 +38,15 @@ class TeacherCoverageApp:
                 dpg.add_theme_color(dpg.mvThemeCol_Button, (60, 60, 60, 255))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (80, 80, 80, 255))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100, 255))
-
                 # Set text color (e.g., a light gray)
                 dpg.add_theme_color(dpg.mvThemeCol_Text, (220, 220, 220, 255))
                 dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 10)
 
         with dpg.value_registry():
             dpg.add_string_value(default_value=str(datetime.date.today()), tag="date_input")
-            for i in range(len(self.teachers)):
-                dpg.add_bool_value(default_value=False, tag=f"teacher_{i}")
+            # Use teacher names for tags to ensure correct mapping
+            for name in self.teacherObjects.keys():
+                dpg.add_bool_value(default_value=False, tag=f"teacher_{name}")
 
         dpg.create_viewport(title='Custom Title', width=800, height=800)
         
@@ -54,18 +63,19 @@ class TeacherCoverageApp:
                     dpg.add_table_column()
                     dpg.add_table_column()
                     
-                    # Iterate in steps of 2 to group teachers in pairs
-                    for i in range(0, len(self.teachers), 2):
+                    # Iterate through teacher names directly
+                    teacher_names = list(self.teacherObjects.keys())
+                    for i in range(0, len(teacher_names), 2):
                         with dpg.table_row():
                             # First teacher in the pair goes in the first cell
                             with dpg.table_cell():
-                                dpg.add_checkbox(label=self.teachers[i], source=f"teacher_{i}")
+                                dpg.add_checkbox(label=teacher_names[i], source=f"teacher_{teacher_names[i]}")
 
                             # Check if a second teacher exists for the pair
-                            if i + 1 < len(self.teachers):
+                            if i + 1 < len(teacher_names):
                                 # Second teacher goes in the second cell
                                 with dpg.table_cell():
-                                    dpg.add_checkbox(label=self.teachers[i+1], source=f"teacher_{i+1}")
+                                    dpg.add_checkbox(label=teacher_names[i+1], source=f"teacher_{teacher_names[i+1]}")
                             
                 dpg.add_spacer(height=5)
                 dpg.add_text("Date (YYYY-MM-DD)")
@@ -82,14 +92,25 @@ class TeacherCoverageApp:
         dpg.start_dearpygui()
         dpg.destroy_context()
 
+def parse_schedule(file_path):
+    # Placeholder function to parse the schedule file
+    # returns a dictionary mapping names to Teacher objects
+    return None
         
 def main():
-    teachers = ["Mr. Smith", "Ms. Johnson", "Mrs. Lee", "Mr. Brown", "Ms. Davis", "Mr. Wilson", "Mrs. Taylor", "Ms. Anderson", "Mr. Thomas", "Ms. Jackson", "Mr. White", "Ms. Harris", "Mrs. Martin", "Mr. Thompson", "Ms. Garcia", "Mr. Martinez", "Mrs. Robinson", "Ms. Clark", "Mr. Rodriguez", "Ms. Lewis"]
+    # Example teachers for demonstration
+    teacher_names = ["Alice", "Bob", "Charlie", "David", "Eva", "Frank"]
+    teachers = {name: Teacher(name, [1], [1]) for name in teacher_names}
     app = TeacherCoverageApp(teachers)
     app.create_gui()
     
-    print("Teachers out:", app.is_teacher_out)
-    print("Date selected:", app.date)
+    # After GUI closes, access the results
+    print("Date:", app.date)
+    for name, teacher in app.teacherObjects.items():
+        print(f"Teacher: {name}, Is Out: {teacher.is_out}")
+        # periods need covered and periods available can be accessed as well
+        print(f"   Periods Need Covered: {teacher.periods_need_covered}")
+        print(f"   Periods Available: {teacher.periods_available}")
 
 if __name__ == "__main__":
     main()
