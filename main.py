@@ -82,6 +82,7 @@ class TeacherCoverageApp:
         dpg.destroy_context()
 
 def determineCoverage_and_save(teachers, date, coverage_tracker_json):
+    outputString = f"Date: {date}\n"
     # Check if the file exists and is not empty before attempting to load
     if os.path.exists(coverage_tracker_json) and os.path.getsize(coverage_tracker_json) > 0:
         with open(coverage_tracker_json, 'r') as f:
@@ -102,6 +103,7 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     ], key=lambda x: x[1])
 
     for teacher_out_name in teachers_out:
+        outputString += f"{teacher_out_name}:\n"
         teacher_out_obj = teachers[teacher_out_name]
         for period in teacher_out_obj.periods_need_covered:
             # Find the first available teacher who can cover the period
@@ -113,6 +115,7 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
 
             if assigned_teacher_name:
                 # Update times_covered and log the coverage event in the JSON data
+                outputString += f"  {period} {assigned_teacher_name}\n"
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
                 new_log_entry = {
                     'date': date,
@@ -123,10 +126,16 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
                 
                 print(f"Assigned {assigned_teacher_name} to cover {teacher_out_name} for period {period}")
             else:
+                outputString += f"  {period} No available teacher\n"
                 print(f"No available teachers to cover {teacher_out_name} for period {period}")
 
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
+
+    #write outputstring to a text file for date
+    with open(f"coverage_{date}.txt", 'w') as f:
+        f.write(outputString)
+
 
 def main():
     teacher_names = ["Alice", "Bob", "Charlie", "David", "Eva", "Frank"]
