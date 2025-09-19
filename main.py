@@ -125,7 +125,7 @@ def parseSchedule(filepath):
                 # Use strip and lower to ensure matching is robust
                 teacher_last_name = teacher.last_name.strip().lower()
                 if any(teacher_last_name in duty_assignment for duty_assignment in duty_assignments):
-                    teacher.periods_available.append(period)
+                    teacher.periods_available.append(str(period))
 
                     
 
