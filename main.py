@@ -2,18 +2,20 @@ import dearpygui.dearpygui as dpg
 import datetime
 import json
 import os
+import pandas as pd
 
 class Teacher:
-    def __init__(self, name, periods_need_covered, periods_available):
-        self.name = name
+    def __init__(self, name, periods_need_covered):
+        self.name= name
+        self.last_name = name.split(',')[0]  # Assuming the last name is the first part of the full name
         self.is_out = False
         self.periods_need_covered = periods_need_covered
-        self.periods_available = periods_available
+        self.periods_available = []
 
 class TeacherCoverageApp:
-    def __init__(self, teachers):
+    def __init__(self, schedule_filepath):
         self.date = ""
-        self.teacherObjects = teachers
+        self.teacherObjects = parseSchedule(schedule_filepath)
 
     def validate_and_proceed(self):
         date_string = dpg.get_value("date_input")
@@ -96,6 +98,42 @@ class TeacherCoverageApp:
         dpg.start_dearpygui()
         dpg.destroy_context()
 
+def parseSchedule(filepath):
+    schedule_df = pd.read_excel(filepath, sheet_name=0)
+
+    teachers = {}
+
+    for index, row in schedule_df.iterrows():
+        name = row.get('Name')
+        if pd.isna(name) or not name:
+            continue
+
+        need_coverage_str = row.get('Need Coverage')
+        needs_coverage = [s.strip() for s in str(need_coverage_str).split(',')] if pd.notna(need_coverage_str) else []
+
+        teacher = Teacher(name, needs_coverage)
+        teachers[name] = teacher
+        
+    for period in range(1, 12):
+        duty_col = f'Duty {period}'
+        if duty_col in schedule_df.columns:
+            # Create a list of all duty assignments for this period
+            duty_assignments = [str(entry).strip().lower() for entry in schedule_df[duty_col].dropna()]
+            print(f"Duty assignments for period {period}: {duty_assignments}")
+            # Check each teacher against the list of duty assignments
+            for name, teacher in teachers.items():
+                # Use strip and lower to ensure matching is robust
+                teacher_last_name = teacher.last_name.strip().lower()
+                if any(teacher_last_name in duty_assignment for duty_assignment in duty_assignments):
+                    teacher.periods_available.append(period)
+
+                    
+
+    return teachers
+        
+    
+    
+
 def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     outputString = f"Date: {date}\n"
     if os.path.exists(coverage_tracker_json) and os.path.getsize(coverage_tracker_json) > 0:
@@ -146,17 +184,10 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
         f.write(outputString)
 
 def main():
-    teacher_names = ["Alice", "Bob", "Charlie", "David", "Eva", "Frank"]
-    teachers = {
-        "Alice": Teacher("Alice", [1], [2, 3]),
-        "Bob": Teacher("Bob", [2], [1, 3]),
-        "Charlie": Teacher("Charlie", [3], [1, 2]),
-        "David": Teacher("David", [1], [2, 3]),
-        "Eva": Teacher("Eva", [2], [1, 3]),
-        "Frank": Teacher("Frank", [3], [1, 2]),
-    }
 
-    app = TeacherCoverageApp(teachers)
+    schedule_filepath = "Coverage_Schedule.xlsx"
+
+    app = TeacherCoverageApp(schedule_filepath)
     app.create_gui()
     
     coverage_file = "coverage_tracker.json"
@@ -166,6 +197,10 @@ def main():
     with open(coverage_file, 'r') as f:
         final_data = json.load(f)
     print(json.dumps(final_data, indent=4))
+
+    #print all teacher objects for debugging
+    for name, teacher in app.teacherObjects.items():
+        print(f"Teacher: {name}, Is Out: {teacher.is_out}, Needs Coverage: {teacher.periods_need_covered}, Available: {teacher.periods_available}, Last Name: {teacher.last_name}")
 
 if __name__ == "__main__":
     main()
