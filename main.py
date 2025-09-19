@@ -157,10 +157,20 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
         teacher_out_obj = teachers[teacher_out_name]
         for period in teacher_out_obj.periods_need_covered:
             assigned_teacher_name = None
-            for name, _ in sorted_available_teachers:
-                if period in teachers[name].periods_available:
-                    assigned_teacher_name = name
-                    break
+            if '/' in period:
+                period1, period2 = period.split('/')
+                for teacher_name, _ in sorted_available_teachers:
+                    if period1 in teachers[teacher_name].periods_available and period2 in teachers[teacher_name].periods_available:
+                        teachers[teacher_name].periods_available.remove(period1)
+                        teachers[teacher_name].periods_available.remove(period2)
+                        assigned_teacher_name = teacher_name
+                        break
+            else:
+                for name, _ in sorted_available_teachers:
+                    if period in teachers[name].periods_available:
+                        teachers[name].periods_available.remove(period)
+                        assigned_teacher_name = name
+                        break
 
             if assigned_teacher_name:
                 outputString += f"  {period} {assigned_teacher_name}\n"
@@ -172,10 +182,8 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
                 }
                 coverage_data[assigned_teacher_name]['coverage_log'].append(new_log_entry)
                 
-                print(f"Assigned {assigned_teacher_name} to cover {teacher_out_name} for period {period}")
             else:
                 outputString += f"  {period} No available teacher\n"
-                print(f"No available teachers to cover {teacher_out_name} for period {period}")
 
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
