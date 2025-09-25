@@ -11,6 +11,7 @@ class Teacher:
         self.is_out = False
         self.periods_need_covered = periods_need_covered
         self.periods_available = []
+        self.periods_need_covered_CT = []
 
 class TeacherCoverageApp:
     def __init__(self, schedule_filepath):
@@ -98,6 +99,45 @@ class TeacherCoverageApp:
         dpg.start_dearpygui()
         dpg.destroy_context()
 
+def add_ordinal_suffix(number):
+    """
+    Adds the correct ordinal suffix (st, nd, rd, th) to a given number.
+    Handles special cases for numbers ending in 11, 12, and 13.
+    """
+    digit= int(number)
+    if digit == 1:
+        suffix = "st"
+    elif digit == 2:
+        suffix = "nd"
+    elif digit == 3:
+        suffix = "rd"
+    else:
+        suffix = "th"
+    return number + suffix
+
+
+def check_coteachers(teachers, filepath):
+    schedule_df = pd.read_excel(filepath, sheet_name=0)
+    for teacher in teachers:
+        if not teacher.is_out:
+            continue
+        for period in teacher.periods_need_covered_CT:
+            period=add_ordinal_suffix(period)
+            if period in schedule_df.columns:
+                period_data = schedule_df[period].dropna().astype(str).str.strip().str.lower().tolist()
+                substrings = [s.split('CT') for s in period_data]
+                coteacher = substrings[1].strip() if len(substrings) > 1 else None
+                if coteacher:
+                    if teachers[coteacher].is_out:
+                        teacher[coteacher].periods_need_covered_CT.remove(period)
+                        teacher.periods_need_covered_CT.remove(period)
+                        teacher.periods_need_covered.append(period)
+                    else:
+                        teacher.periods_need_covered_CT.remove(period)
+                        
+            
+           
+
 def parseSchedule(filepath):
     schedule_df = pd.read_excel(filepath, sheet_name=0)
 
@@ -108,32 +148,40 @@ def parseSchedule(filepath):
         if pd.isna(name) or not name:
             continue
 
-        need_coverage_str = row.get('Need Coverage')
-        needs_coverage = [s.strip() for s in str(need_coverage_str).split(',')] if pd.notna(need_coverage_str) else []
+        need_coverage_str = str(row.get('Need Coverage'))
+        if "CT" in need_coverage_str:
+            substrings= need_coverage_str.split(" CT-")
+            needs_coverage = substrings[1].strip().split(",") if pd.notna(substrings[0]) else []
+            needs_coverage_CT = [s.strip() for s in substrings[1].split(",")] if len(substrings) > 1 and pd.notna(substrings[1]) else []
+        else:
+            needs_coverage = [s.strip() for s in need_coverage_str.split(',')] if pd.notna(need_coverage_str) else []
 
         teacher = Teacher(name, needs_coverage)
+        teacher.periods_need_covered_CT = needs_coverage_CT
         teachers[name] = teacher
         
     for period in range(1, 12):
+        period=add_ordinal_suffix(period)
         duty_col = f'Duty {period}'
         if duty_col in schedule_df.columns:
             # Create a list of all duty assignments for this period
             duty_assignments = [str(entry).strip().lower() for entry in schedule_df[duty_col].dropna()]
             print(f"Duty assignments for period {period}: {duty_assignments}")
             # Check each teacher against the list of duty assignments
-            for name, teacher in teachers.items():
-                # Use strip and lower to ensure matching is robust
-                teacher_last_name = teacher.last_name.strip().lower()
-                if any(teacher_last_name in duty_assignment for duty_assignment in duty_assignments):
-                    teacher.periods_available.append(str(period))
-
-                    
+            for duty in duty_assignments:
+                iss=False
+                if "ISS" in duty:
+                    duty = duty.replace("ISS", "").strip()
+                    iss=True
+                for teacher in teachers.values():
+                    if teacher.last_name.lower() in duty:
+                        if iss:
+                            teacher.periods_available.append(f"{period} (ISS)")
+                        else:
+                            teacher.periods_available.append(period)
 
     return teachers
         
-    
-    
-
 def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     outputString = f"Date: {date}\n"
     if os.path.exists(coverage_tracker_json) and os.path.getsize(coverage_tracker_json) > 0:
@@ -155,7 +203,46 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     for teacher_out_name in teachers_out:
         outputString += f"{teacher_out_name}:\n"
         teacher_out_obj = teachers[teacher_out_name]
+        iss=False
         for period in teacher_out_obj.periods_need_covered:
+            assigned_teacher_name = None
+            if '/' in period:
+                period1, period2 = period.split('/')
+                for teacher_name, _ in sorted_available_teachers:
+                    if period1 in teachers[teacher_name].periods_available and period2 in teachers[teacher_name].periods_available:
+                        teachers[teacher_name].periods_available.remove(period1)
+                        teachers[teacher_name].periods_available.remove(period2)
+                        assigned_teacher_name = teacher_name
+                        break
+            else:
+                for name, _ in sorted_available_teachers:
+                    if period in teachers[name].periods_available:
+                        teachers[name].periods_available.remove(period)
+                        assigned_teacher_name = name
+                        break
+            if not assigned_teacher_name:
+                for name, _ in sorted_available_teachers:
+                    if f"{period} (ISS)" in teachers[name].periods_available:
+                        teachers[name].periods_available.remove(f"{period} (ISS)")
+                        assigned_teacher_name = name
+                        iss=True 
+                        break
+            if assigned_teacher_name:
+                if iss:
+                    outputString += f"  {period} (ISS) {assigned_teacher_name}\n"
+                else:
+                    outputString += f"  {period} {assigned_teacher_name}\n"
+                coverage_data[assigned_teacher_name]['times_covered'] += 1
+                new_log_entry = {
+                    'date': date,
+                    'covered_for': teacher_out_name,
+                    'period': period
+                }
+                coverage_data[assigned_teacher_name]['coverage_log'].append(new_log_entry)
+                
+            else:
+                outputString += f"  {period} No available teacher\n"
+        for period in teacher_out_obj.periods_need_covered_CT:
             assigned_teacher_name = None
             if '/' in period:
                 period1, period2 = period.split('/')
@@ -197,7 +284,7 @@ def main():
 
     app = TeacherCoverageApp(schedule_filepath)
     app.create_gui()
-    
+    check_coteachers(app.teacherObjects, schedule_filepath)
     coverage_file = "coverage_tracker.json"
     determineCoverage_and_save(app.teacherObjects, app.date, coverage_file)
 
