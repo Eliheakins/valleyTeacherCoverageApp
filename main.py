@@ -11,6 +11,7 @@ class Teacher:
         self.periods_need_covered = periods_need_covered
         self.periods_available = []
         self.periods_need_covered_CT = []
+        self.iss_periods_available = []
 
 class TeacherCoverageApp:
     def __init__(self, schedule_filepath):
@@ -143,19 +144,9 @@ def check_coteachers(teachers, filepath):
                 period_suffex=add_ordinal_suffix(check_period)
                 if period_suffex in schedule_df.columns:
                     period_data = schedule_df[period_suffex].dropna().astype(str).str.strip().str.lower().tolist()
-                    
-                    # NOTE: This 'CT' logic is fragile but preserved from your original code
-                    # It relies on the duty cell containing 'CT' followed by the co-teacher's name.
-                    
-                    # Simple check for co-teacher presence (assuming the teacher name is the key)
                     coteacher_name = None
                     for entry in period_data:
                         if 'ct' in entry:
-                            # Attempt to extract co-teacher name. This logic is highly dependent
-                            # on the exact formatting of the cell content.
-                            # Since the name is now in the full format, we look for a full teacher name
-                            # in the entry. A more robust solution is needed for co-teaching, but
-                            # we'll use the existing teacher keys for a simple lookup.
                             for name in teachers.keys():
                                 if name.strip().lower() in entry.lower():
                                     if name != teacher.name: # Don't select the teacher who is out
@@ -167,10 +158,6 @@ def check_coteachers(teachers, filepath):
                     if coteacher_name:
                         # Check if the co-teacher is also out
                         if teachers[coteacher_name].is_out:
-                            # If co-teacher is out, the current teacher still needs coverage for this period
-                            # and the co-teacher's need for this period is cancelled (if they had one).
-                            # Note: Your original logic was flawed here, using teacher[coteacher] which doesn't exist.
-                            # It's been simplified to append to the current teacher's needs.
                             if period in teachers[coteacher_name].periods_need_covered_CT:
                                 teachers[coteacher_name].periods_need_covered_CT.remove(period)
                             if period in teacher.periods_need_covered_CT:
@@ -199,7 +186,6 @@ def parseSchedule(filepath):
         needs_coverage_CT = []
         needs_coverage = []
         
-        # This parsing logic is fragile but preserved from your original code
         if "CT" in need_coverage_str:
             substrings= need_coverage_str.split(" CT-")
             needs_coverage = [s.strip() for s in substrings[0].split(",")] if pd.notna(substrings[0]) and substrings[0].strip() else []
@@ -238,7 +224,7 @@ def parseSchedule(filepath):
                     if teacher_full_name_lower in duty_clean:
                         period_to_add = str(period) # Period must be a string for matching
                         if iss:
-                            teacher.periods_available.append(f"{period_to_add} (ISS)")
+                            teacher.iss_periods_available.append(period_to_add)
                         else:
                             teacher.periods_available.append(period_to_add)
 
@@ -265,49 +251,64 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
     for teacher_out_name in teachers_out:
         outputString += f"{teacher_out_name}:\n"
         teacher_out_obj = teachers[teacher_out_name]
-        iss_covered = False
         
+        # Helper function to find and remove period from available list
+        def find_and_assign(p1, p2=None):
+            nonlocal assigned_teacher_name, iss_covered
+            
+            # 1. Check Standard Availability (Non-ISS)
+            for name, _ in sorted_available_teachers:
+                teacher = teachers[name]
+                
+                # Check for coverage in periods_available (handles both single and split needs)
+                if p2: # Split period needed
+                    if p1 in teacher.periods_available and p2 in teacher.periods_available:
+                        teacher.periods_available.remove(p1)
+                        teacher.periods_available.remove(p2)
+                        assigned_teacher_name = name
+                        return True
+                elif p1 in teacher.periods_available: # Single period needed
+                    teacher.periods_available.remove(p1)
+                    assigned_teacher_name = name
+                    return True
+            
+            # 2. Check ISS Availability (Fallback)
+            for name, _ in sorted_available_teachers:
+                teacher = teachers[name]
+                
+                # Check for coverage in iss_periods_available (NOW HANDLES SPLIT ISS PERIODS)
+                if p2: # Split period needed (ISS)
+                    if p1 in teacher.iss_periods_available and p2 in teacher.iss_periods_available:
+                        teacher.iss_periods_available.remove(p1)
+                        teacher.iss_periods_available.remove(p2)
+                        assigned_teacher_name = name
+                        iss_covered = True
+                        return True
+                elif p1 in teacher.iss_periods_available: # Single period needed (ISS)
+                    teacher.iss_periods_available.remove(p1)
+                    assigned_teacher_name = name
+                    iss_covered = True
+                    return True
+                    
+            return False
+
         # --- Handle standard periods that need coverage ---
         for period in teacher_out_obj.periods_need_covered:
             assigned_teacher_name = None
             iss_covered = False
             
-            # --- Check for Split Periods (e.g., '5/6') ---
             if '/' in period:
                 period1, period2 = period.split('/')
-                # Check for available teacher with both periods
-                for teacher_name, _ in sorted_available_teachers:
-                    if period1 in teachers[teacher_name].periods_available and period2 in teachers[teacher_name].periods_available:
-                        teachers[teacher_name].periods_available.remove(period1)
-                        teachers[teacher_name].periods_available.remove(period2)
-                        assigned_teacher_name = teacher_name
-                        break
-            
-            # --- Check for Single Periods (e.g., '1') ---
+                find_and_assign(period1, period2)
             else:
-                # Check for standard (non-ISS) coverage first
-                for name, _ in sorted_available_teachers:
-                    if period in teachers[name].periods_available:
-                        teachers[name].periods_available.remove(period)
-                        assigned_teacher_name = name
-                        break
-                
-                # Check for ISS coverage if standard coverage failed
-                if not assigned_teacher_name:
-                    iss_period = f"{period} (ISS)"
-                    for name, _ in sorted_available_teachers:
-                        if iss_period in teachers[name].periods_available:
-                            teachers[name].periods_available.remove(iss_period)
-                            assigned_teacher_name = name
-                            iss_covered = True 
-                            break
+                find_and_assign(period)
             
             # --- Output and Save Results ---
             if assigned_teacher_name:
                 if iss_covered:
-                    outputString += f"  (Close ISS) {period} {assigned_teacher_name}\n"
+                    outputString += f" (Close ISS) {period} {assigned_teacher_name}\n"
                 else:
-                    outputString += f"  {period} {assigned_teacher_name}\n"
+                    outputString += f" {period} {assigned_teacher_name}\n"
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
                 new_log_entry = {
                     'date': date,
@@ -317,29 +318,22 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
                 coverage_data[assigned_teacher_name]['coverage_log'].append(new_log_entry)
                 
             else:
-                outputString += f"  {period} No available teacher\n"
+                outputString += f" {period} No available teacher\n"
         
         # --- Handle Co-teacher periods that need coverage ---
         for period in teacher_out_obj.periods_need_covered_CT:
             assigned_teacher_name = None
+            iss_covered = False
             
             if '/' in period:
                 period1, period2 = period.split('/')
-                for teacher_name, _ in sorted_available_teachers:
-                    if period1 in teachers[teacher_name].periods_available and period2 in teachers[teacher_name].periods_available:
-                        teachers[teacher_name].periods_available.remove(period1)
-                        teachers[teacher_name].periods_available.remove(period2)
-                        assigned_teacher_name = teacher_name
-                        break
+                find_and_assign(period1, period2)
             else:
-                for name, _ in sorted_available_teachers:
-                    if period in teachers[name].periods_available:
-                        teachers[name].periods_available.remove(period)
-                        assigned_teacher_name = name
-                        break
+                find_and_assign(period)
 
             if assigned_teacher_name:
-                outputString += f"  (CT) {period} {assigned_teacher_name}\n"
+                iss_tag = " (Close ISS)" if iss_covered else ""
+                outputString += f" (CT){iss_tag} {period} {assigned_teacher_name}\n"
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
                 new_log_entry = {
                     'date': date,
@@ -349,7 +343,7 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
                 coverage_data[assigned_teacher_name]['coverage_log'].append(new_log_entry)
                 
             else:
-                outputString += f"  (CT) {period} No available teacher\n"
+                outputString += f" (CT) {period} No available teacher\n"
 
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
