@@ -113,31 +113,40 @@ def add_ordinal_suffix(number):
         suffix = "rd"
     else:
         suffix = "th"
-    return number + suffix
+    return str(number) + suffix
 
 
 def check_coteachers(teachers, filepath):
     schedule_df = pd.read_excel(filepath, sheet_name=0)
     for teacher in teachers:
+        teacher = teachers[teacher]
         if not teacher.is_out:
             continue
         for period in teacher.periods_need_covered_CT:
-            period=add_ordinal_suffix(period)
-            if period in schedule_df.columns:
-                period_data = schedule_df[period].dropna().astype(str).str.strip().str.lower().tolist()
-                substrings = [s.split('CT') for s in period_data]
-                coteacher = substrings[1].strip() if len(substrings) > 1 else None
-                if coteacher:
-                    if teachers[coteacher].is_out:
-                        teacher[coteacher].periods_need_covered_CT.remove(period)
-                        teacher.periods_need_covered_CT.remove(period)
-                        teacher.periods_need_covered.append(period)
-                    else:
-                        teacher.periods_need_covered_CT.remove(period)
+            if '/' in period:
+                period1, period2 = period.split('/')
+                check_periods = [period1.strip(), period2.strip()]
+            else:
+                check_periods = [period.strip()]
+            for period in check_periods:
+                period=add_ordinal_suffix(period)
+                if period in schedule_df.columns:
+                    period_data = schedule_df[period].dropna().astype(str).str.strip().str.lower().tolist()
+                    substrings = [s.split('CT') for s in period_data]
+                    coteacher = None
+                    # Flatten the list and get the coteacher name if present
+                    for split in substrings:
+                        if len(split) > 1 and split[1].strip():
+                            coteacher = split[1].strip()
+                            break
+                    if coteacher:
+                        if teachers[coteacher].is_out:
+                            teacher[coteacher].periods_need_covered_CT.remove(period)
+                            teacher.periods_need_covered_CT.remove(period)
+                            teacher.periods_need_covered.append(period)
+                        else:
+                            teacher.periods_need_covered_CT.remove(period)
                         
-            
-           
-
 def parseSchedule(filepath):
     schedule_df = pd.read_excel(filepath, sheet_name=0)
 
@@ -147,12 +156,16 @@ def parseSchedule(filepath):
         name = row.get('Name')
         if pd.isna(name) or not name:
             continue
+        if '(' in name:
+            name = name.split('(')[0].strip()
 
         need_coverage_str = str(row.get('Need Coverage'))
+        needs_coverage_CT = []
+        needs_coverage = []
         if "CT" in need_coverage_str:
             substrings= need_coverage_str.split(" CT-")
-            needs_coverage = substrings[1].strip().split(",") if pd.notna(substrings[0]) else []
-            needs_coverage_CT = [s.strip() for s in substrings[1].split(",")] if len(substrings) > 1 and pd.notna(substrings[1]) else []
+            needs_coverage = substrings[0].strip().split(",") if pd.notna(substrings[0]) else []
+            needs_coverage_CT = [s.strip() for s in substrings[0].split(",")] if len(substrings) > 1 and pd.notna(substrings[1]) else []
         else:
             needs_coverage = [s.strip() for s in need_coverage_str.split(',')] if pd.notna(need_coverage_str) else []
 
@@ -161,8 +174,8 @@ def parseSchedule(filepath):
         teachers[name] = teacher
         
     for period in range(1, 12):
-        period=add_ordinal_suffix(period)
-        duty_col = f'Duty {period}'
+        period_suffex=add_ordinal_suffix(period)
+        duty_col = f'Duty {period_suffex}'
         if duty_col in schedule_df.columns:
             # Create a list of all duty assignments for this period
             duty_assignments = [str(entry).strip().lower() for entry in schedule_df[duty_col].dropna()]
@@ -178,7 +191,7 @@ def parseSchedule(filepath):
                         if iss:
                             teacher.periods_available.append(f"{period} (ISS)")
                         else:
-                            teacher.periods_available.append(period)
+                            teacher.periods_available.append(str(period))
 
     return teachers
         
@@ -229,7 +242,7 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json):
                         break
             if assigned_teacher_name:
                 if iss:
-                    outputString += f"  {period} (ISS) {assigned_teacher_name}\n"
+                    outputString += f"  (Close ISS) {period} {assigned_teacher_name}\n"
                 else:
                     outputString += f"  {period} {assigned_teacher_name}\n"
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
