@@ -5,8 +5,42 @@ import os
 import pandas as pd
 import sys
 
-# Name of the schedule file, expected to be next to the executable.
+# --- CONFIGURATION CONSTANTS ---
 SCHEDULE_FILENAME = "Coverage_Schedule.xlsx"
+CONFIG_FILENAME = "config.json"
+# -------------------------------
+
+# --- CONFIGURATION MANAGEMENT FUNCTIONS ---
+
+def load_config():
+    """Loads settings from config.json or returns defaults if not found."""
+    default_config = {
+        "SCHEDULE_FILE_PATH": None,
+        # Future settings can be added here
+    }
+    try:
+        if os.path.exists(CONFIG_FILENAME):
+            with open(CONFIG_FILENAME, 'r') as f:
+                config = json.load(f)
+                # Ensure all default keys exist, in case the config file is old
+                return {**default_config, **config} 
+        return default_config
+    except json.JSONDecodeError:
+        print(f"Warning: {CONFIG_FILENAME} is corrupt. Using default settings.")
+        return default_config
+    except Exception as e:
+        print(f"Error loading config: {e}. Using default settings.")
+        return default_config
+
+def save_config(config):
+    """Saves the current configuration to config.json."""
+    try:
+        with open(CONFIG_FILENAME, 'w') as f:
+            json.dump(config, f, indent=4)
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
+# ------------------------------------------
 
 class Teacher:
     def __init__(self, name, periods_need_covered):
@@ -24,25 +58,52 @@ class TeacherCoverageApp:
     def __init__(self, schedule_filepath):
         self.date = ""
         # The schedule_filepath is an absolute path passed from main()
+        self.schedule_filepath = schedule_filepath 
         self.teacherObjects, self.critical_error_message = parseSchedule(schedule_filepath) 
         self.evenDay = False
 
     def validate_and_proceed(self):
         date_string = dpg.get_value("date_input")
+        
+        # 1. Check Date Format
         try:
             datetime.date.fromisoformat(date_string)
             self.date = date_string
-            self.receiveValues_and_stop()
         except ValueError:
             with dpg.window(label="Error", modal=True, no_resize=True, no_close=True) as popup_window:
                 dpg.add_text("Invalid date format. Please use YYYY-MM-DD.")
                 dpg.add_button(label="Ok", callback=lambda: dpg.delete_item(popup_window))
+            return # Stop execution if date is invalid
+
+        # 2. Check if at least one teacher is selected
+        selected_teachers_count = 0
+        for name in self.teacherObjects.keys():
+            if dpg.get_value(f"teacher_{name}"):
+                selected_teachers_count += 1
+        
+        if selected_teachers_count == 0:
+            with dpg.window(label="Warning", modal=True, no_resize=True, no_close=True) as popup_window:
+                dpg.add_text("Please select at least one teacher who is out.")
+                dpg.add_button(label="Ok", callback=lambda: dpg.delete_item(popup_window))
+            return # Stop execution if no teacher is selected
+
+        # If validation passes, proceed to calculation
+        self.receiveValues_and_stop()
 
     def receiveValues_and_stop(self):
         for name in self.teacherObjects.keys():
             self.teacherObjects[name].is_out = dpg.get_value(f"teacher_{name}")
         self.evenDay = dpg.get_value("even_day_checkbox")
-        dpg.stop_dearpygui() # Stops DPG loop and returns control to main
+        dpg.stop_dearpygui() # Stops DPG loop and returns control to main to run logic
+
+    def clear_all_teachers(self):
+        """Resets all teacher checkboxes to False."""
+        for name in self.teacherObjects.keys():
+            dpg.set_value(f"teacher_{name}", False)
+            
+    # --- MODIFIED: ADDED BUTTON CALLBACK TO RE-OPEN FILE DIALOG ---
+    def open_file_dialog(self):
+        dpg.show_item("file_dialog_tag")
 
     def create_gui(self):
         dpg.create_context()
@@ -67,12 +128,18 @@ class TeacherCoverageApp:
             for name in self.teacherObjects.keys():
                 dpg.add_bool_value(default_value=False, tag=f"teacher_{name}")
 
-        dpg.create_viewport(title='Custom Title', width=800, height=800)
+        dpg.create_viewport(title='Teacher Coverage', width=800, height=800)
         
         with dpg.window(tag="main_window", label="main_window", no_move=True, no_resize=True, no_title_bar=True, pos=(0, 0), width=800, height=800):
             with dpg.group(tag="main_group", horizontal=False):
                 dpg.add_text("Valley Teacher Coverage", tag="title_text")
                 dpg.add_spacer(height=5)
+                
+                # --- ADDED: Display current schedule file path ---
+                dpg.add_text(f"Schedule File: {os.path.basename(self.schedule_filepath)}", tag="file_status")
+                dpg.add_button(label="Change Schedule File", callback=self.open_file_dialog)
+                dpg.add_spacer(height=10)
+                # ------------------------------------------------
                 
                 dpg.add_text("Teachers Out:", tag="teachers_label")
                 dpg.add_spacer(height=5)
@@ -93,6 +160,11 @@ class TeacherCoverageApp:
                                     dpg.add_checkbox(label=teacher_names[i+1], source=f"teacher_{teacher_names[i+1]}")
                             
                 dpg.add_spacer(height=5)
+                
+                # Add Clear All button
+                dpg.add_button(label="Clear All Selections", callback=self.clear_all_teachers, width=-1)
+                dpg.add_spacer(height=5)
+
                 dpg.add_text("Date (YYYY-MM-DD)")
                 dpg.add_input_text(source="date_input", width=250)
                 dpg.add_spacer(height=5)
@@ -109,6 +181,82 @@ class TeacherCoverageApp:
         dpg.show_viewport()
         dpg.start_dearpygui()
         dpg.destroy_context()
+
+# --- FILE DIALOG CALLBACK ---
+
+def file_dialog_callback(sender, app_data, user_data):
+    """
+    Handles the result of the file dialog. Runs application logic to save
+    the path and reload the schedule data if successful.
+    """
+    selected_file_path = app_data.get('file_path_name')
+    
+    if selected_file_path and os.path.exists(selected_file_path):
+        # 1. Update Configuration
+        config = load_config()
+        config['SCHEDULE_FILE_PATH'] = selected_file_path
+        save_config(config)
+        
+        # 2. Stop DPG so main() can restart the application logic with the new path
+        dpg.stop_dearpygui()
+    else:
+        # User cancelled or selected an invalid file, just close the dialog
+        dpg.configure_item("file_dialog_tag", show=False)
+
+
+# --- INITIAL FILE SELECTION GUI ---
+
+def get_initial_file_path():
+    """
+    Checks config for file path. If not found, runs a temporary DPG context 
+    with a file dialog to get the path from the user.
+    """
+    config = load_config()
+    file_path = config.get("SCHEDULE_FILE_PATH")
+
+    if file_path and os.path.exists(file_path):
+        return file_path, None
+
+    # --- Run File Selection GUI ---
+    dpg.create_context()
+    dpg.set_global_font_scale(2.0)
+    dpg.create_viewport(title='Select Schedule File', width=600, height=200)
+
+    # Use a temporary window for instructions
+    with dpg.window(label="Schedule File Required", no_resize=True, no_close=True, no_title_bar=True, pos=(0, 0), width=600, height=200):
+        dpg.add_text("Please locate and select your 'Coverage_Schedule.xlsx' file.", wrap=550)
+        dpg.add_spacer(height=10)
+        dpg.add_button(label="Browse for File", callback=lambda: dpg.show_item("file_dialog_tag"))
+
+    # File dialog configuration
+    with dpg.file_dialog(
+        directory_selector=False, 
+        show=False, 
+        callback=file_dialog_callback, 
+        tag="file_dialog_tag", 
+        width=700, 
+        height=400
+    ):
+        dpg.add_file_extension(".xlsx", color=(150, 255, 150, 255))
+        dpg.add_file_extension("", color=(255, 255, 255, 255)) 
+
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+    dpg.start_dearpygui() 
+    dpg.destroy_context()
+
+    # Re-read config after the GUI stops (i.e., after a file was successfully selected/saved)
+    new_config = load_config()
+    final_path = new_config.get("SCHEDULE_FILE_PATH")
+    
+    if final_path and os.path.exists(final_path):
+        return final_path, None
+    else:
+        # If the user closes the dialog without selecting a file
+        return None, "Application closed. Please select the schedule file to proceed."
+
+
+# --- CORE LOGIC FUNCTIONS (Unchanged from previous version) ---
 
 def add_ordinal_suffix(number):
     """Adds the correct ordinal suffix (st, nd, rd, th) to a given number."""
@@ -140,22 +288,18 @@ def sort_periods(period_sequence):
     """Sorts periods numerically, handling split periods like '5/6'."""
     
     def sort_key(item):
-        # Handle both simple strings and tuples (period, is_ct)
         period_str = item[0] if isinstance(item, tuple) else item
         try:
-            # Sort by the first number in the period string
             return int(period_str.split('/')[0])
         except (ValueError, IndexError):
-            return 99 # Push non-standard periods to the end
+            return 99 
 
     return sorted(period_sequence, key=sort_key)
 
 def check_coteachers(teachers, filepath):
     """
     Checks the schedule for co-teachers (CT). If a co-teacher for a period is 
-    NOT out, the period is removed from the principal teacher's CT coverage list, 
-    meaning coverage is not needed. If the co-teacher IS out, the period moves 
-    from the CT list to the regular need_covered list for the principal teacher.
+    NOT out, the period is removed from the principal teacher's CT coverage list.
     """
     schedule_df = pd.read_excel(filepath, sheet_name=0) 
     for teacher_key in teachers:
@@ -163,7 +307,6 @@ def check_coteachers(teachers, filepath):
         if not teacher.is_out:
             continue
         for period in teacher.periods_need_covered_CT:
-            # Handle split periods (e.g., 5/6)
             if '/' in period:
                 period1, period2 = period.split('/')
                 check_periods = [period1.strip(), period2.strip()]
@@ -176,43 +319,38 @@ def check_coteachers(teachers, filepath):
                     period_data = schedule_df[period_suffex].dropna().astype(str).str.strip().str.lower().tolist()
                     coteacher_name = None
                     for entry in period_data:
-                        # Find the CT assignment in the schedule data
                         if 'ct' in entry:
                             for name in teachers.keys():
                                 if name.strip().lower() in entry.lower():
-                                    if name != teacher.name: # Ensure it's not the teacher checking their own entry
+                                    if name != teacher.name:
                                         coteacher_name = name
                                         break
                             if coteacher_name:
                                 break
 
                     if coteacher_name:
-                        # Case 1: Co-teacher IS also out
                         if teachers[coteacher_name].is_out:
-                            # Prevent double-counting the need for coverage if CT is out
                             if period in teachers[coteacher_name].periods_need_covered_CT:
                                 teachers[coteacher_name].periods_need_covered_CT.remove(period)
                             
-                            # Move from CT-list to regular coverage list for the principal teacher
                             if period in teacher.periods_need_covered_CT:
                                 teacher.periods_need_covered_CT.remove(period)
                                 teacher.periods_need_covered.append(period)
-                        # Case 2: Co-teacher is NOT out (They cover the class)
                         else:
-                            # Remove the period from the principal teacher's CT coverage list
                             if period in teacher.periods_need_covered_CT:
                                 teacher.periods_need_covered_CT.remove(period)
 
 
 def parseSchedule(filepath):
     """
-    Parses the schedule file (now using a reliably resolved absolute path) and 
-    returns a tuple: (teachers_dict, error_message or None).
+    Parses the schedule file and returns a tuple: (teachers_dict, error_message or None).
     """
     try:
         schedule_df = pd.read_excel(filepath, sheet_name=0)
     except FileNotFoundError:
-        return {}, f"File not found: '{SCHEDULE_FILENAME}'. Please place the file next to the program executable."
+        # This error should now be rare if the file selection logic works, 
+        # but kept for robustness.
+        return {}, f"File not found at saved path: '{filepath}'. Please re-select the file."
     except Exception as e:
         return {}, f"Failed to read the schedule file. Details: {type(e).__name__}: {e}"
 
@@ -222,7 +360,6 @@ def parseSchedule(filepath):
         name = row.get('Name')
         if pd.isna(name) or not name:
             continue
-        # Clean up names that might contain parentheses (e.g., "Name (Sub)")
         if '(' in name:
             name = name.split('(')[0].strip()
 
@@ -230,7 +367,6 @@ def parseSchedule(filepath):
         needs_coverage_CT = []
         needs_coverage = []
         
-        # Split coverage needs into regular and co-taught (CT)
         if "CT" in need_coverage_str:
             substrings= need_coverage_str.split(" CT-")
             periods_list = [s.strip() for s in substrings[0].split(",") if s.strip()]
@@ -247,7 +383,6 @@ def parseSchedule(filepath):
         teacher.periods_need_covered_CT = sort_periods(needs_coverage_CT)
         teachers[name] = teacher
         
-    # Populate duty/availability periods
     for period in range(1, 12):
         period_suffex=add_ordinal_suffix(period)
         duty_col = f'Duty {period_suffex}'
@@ -257,7 +392,6 @@ def parseSchedule(filepath):
             for duty_raw in duty_assignments_raw:
                 duty_raw = duty_raw.strip().lower()
                 
-                # Check for specific duty types
                 iss = "iss" in duty_raw
                 evenDay = "even days" in duty_raw
                 oddDay = "odd days" in duty_raw
@@ -269,7 +403,6 @@ def parseSchedule(filepath):
                     if teacher_full_name_lower in duty_raw:
                         period_to_add = str(period)
                         
-                        # Assign the period to the correct availability list
                         if iss:
                             teacher.iss_periods_available.append(period_to_add)
                         elif evenDay:
@@ -284,9 +417,12 @@ def parseSchedule(filepath):
     return teachers, None
 
 def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
+    """
+    Calculates coverage, updates the JSON tracker, saves to a text file, and 
+    returns the coverage text output.
+    """
     outputString = f"Date: {date}\n"
     
-    # Load existing coverage data or initialize if file is missing/empty
     if os.path.exists(coverage_tracker_json) and os.path.getsize(coverage_tracker_json) > 0:
         try:
             with open(coverage_tracker_json, 'r') as f:
@@ -296,14 +432,12 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
     else:
         coverage_data = {}
 
-    # Initialize new teachers in the coverage tracker
     for name in teachers.keys():
         if name not in coverage_data:
             coverage_data[name] = {'times_covered': 0, 'coverage_log': []}
 
     teachers_out = [name for name, teacher in teachers.items() if teacher.is_out]
     
-    # Sort available teachers by fewest times covered to ensure fair distribution
     sorted_available_teachers = sorted([
         (name, data['times_covered']) for name, data in coverage_data.items()
         if name not in teachers_out and name in teachers
@@ -315,11 +449,10 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
 
         all_periods_to_cover_raw = []
         for period in teacher_out_obj.periods_need_covered:
-            all_periods_to_cover_raw.append((period, False)) # False = not CT
+            all_periods_to_cover_raw.append((period, False)) 
         for period in teacher_out_obj.periods_need_covered_CT:
-            all_periods_to_cover_raw.append((period, True)) # True = CT
+            all_periods_to_cover_raw.append((period, True)) 
         
-        # Sort combined list for proper output order
         all_periods_to_cover = sort_periods(all_periods_to_cover_raw) 
         
         def find_and_assign(p1, p2=None):
@@ -332,7 +465,6 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
             for name, _ in sorted_available_teachers:
                 teacher = teachers[name]
                 
-                # Combine base availability with day-specific availability
                 temp_available = set(teacher.periods_available)
                 if evenDay:
                     temp_available.update(teacher.evenDayPeriods_available)
@@ -342,10 +474,8 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 periods_to_check = [p1]
                 if p2: periods_to_check.append(p2)
                 
-                # If available for all required periods, assign and remove periods from their pool
                 if all(p in temp_available for p in periods_to_check):
                     for p in periods_to_check:
-                        # Remove from the specific pool it was found in
                         if p in teacher.periods_available:
                             teacher.periods_available.remove(p)
                         elif evenDay and p in teacher.evenDayPeriods_available:
@@ -386,7 +516,6 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
 
         for period, is_ct in all_periods_to_cover:
             
-            # Call assignment logic based on whether it's a split period
             if '/' in period:
                 period1, period2 = period.split('/')
                 assigned_teacher_name, iss_covered, otherDuty_covered = find_and_assign(period1, period2)
@@ -402,10 +531,8 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 
                 ct_prefix = "   (CT)" if is_ct else "   "
 
-                # Append result to the output string
                 outputString += f"{ct_prefix}{duty_tag} {period} {assigned_teacher_name}\n"
 
-                # Update the coverage tracking data
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
                 new_log_entry = {
                     'date': date,
@@ -414,24 +541,22 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 }
                 coverage_data[assigned_teacher_name]['coverage_log'].append(new_log_entry)
             else:
-                # No teacher found
                 if is_ct:
                     outputString += f"   (CT) {period} No available teacher\n"
                 else:
                     outputString += f"   {period} No available teacher\n"
 
-    # Save the updated coverage tracker data
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
 
-    # Save the day's coverage result to a date-stamped text file
     with open(f"coverage_{date}.txt", 'w') as f:
         f.write(outputString)
+    
+    return outputString
 
 def display_fatal_error_gui(error_message):
     dpg.create_context()
     
-    # Set Global Font Scale to 2.0
     dpg.set_global_font_scale(2.0)
             
     dpg.create_viewport(title='Critical Error', width=600, height=250)
@@ -448,40 +573,99 @@ def display_fatal_error_gui(error_message):
     dpg.start_dearpygui()
     dpg.destroy_context()
 
+def display_results_gui(results_text, date):
+    """
+    Displays the coverage results in a new DearPyGui window.
+    """
+    dpg.create_context()
+    dpg.set_global_font_scale(1.5) 
+
+    def copy_results_to_clipboard():
+        dpg.set_clipboard_text(dpg.get_value("results_text_output"))
+        with dpg.window(label="Copied", modal=True, no_resize=True, no_close=True, width=250) as popup:
+            dpg.add_text("Results copied to clipboard!")
+            dpg.add_button(label="OK", callback=lambda: dpg.delete_item(popup))
+            
+    dpg.create_viewport(title=f'Coverage Results - {date}', width=650, height=800)
+    
+    with dpg.window(tag="results_window", label="Coverage Results", no_move=True, no_resize=True, no_title_bar=True, pos=(0, 0), width=650, height=800):
+        dpg.add_text("Coverage Calculated Successfully!", color=(100, 255, 100, 255))
+        dpg.add_spacer(height=5)
+        
+        dpg.add_input_text(
+            tag="results_text_output", 
+            default_value=results_text, 
+            multiline=True, 
+            readonly=True, 
+            width=-1, 
+            height=650
+        )
+        dpg.add_spacer(height=10)
+
+        dpg.add_button(label="Copy to Clipboard", callback=copy_results_to_clipboard, width=-1)
+        dpg.add_spacer(height=5)
+
+        dpg.add_button(label="Close and Exit", callback=lambda: dpg.stop_dearpygui(), width=-1)
+
+    dpg.set_primary_window("results_window", True)
+    dpg.setup_dearpygui()
+    dpg.show_viewport()
+    dpg.start_dearpygui()
+    dpg.destroy_context()
+
 def main():
     
-    # Determine the absolute path of the schedule file for PyInstaller compatibility.
-    if getattr(sys, 'frozen', False):
-        # Running as compiled .exe: base is the directory of the executable
-        base_dir = os.path.dirname(sys.executable)
-    else:
-        # Running as a script: base is the directory of the script
-        base_dir = os.path.dirname(os.path.abspath(__file__))
+    # --- Reworked main loop to handle file path setting ---
+    
+    # This loop ensures the app re-runs if the user selects a new file path 
+    # from the main GUI's "Change Schedule File" button.
+    while True:
+        # 1. Get the schedule file path (from config or user selection)
+        schedule_file_path, initial_error = get_initial_file_path()
+
+        if initial_error:
+            # Only happens if the user closes the initial file selection GUI
+            print(f"Exiting application: {initial_error}")
+            return
+
+        if not schedule_file_path:
+            # Should not happen if get_initial_file_path works correctly, but safe guard.
+            return
+
+        # 2. Initialize the application object with the (potentially new) path
+        app = TeacherCoverageApp(schedule_file_path)
         
-    schedule_file_absolute_path = os.path.join(base_dir, SCHEDULE_FILENAME)
+        if app.critical_error_message:
+            # Error reading the file at the chosen path
+            display_fatal_error_gui(app.critical_error_message)
+            # After showing the error, the user must re-select the file, 
+            # so the loop continues to get_initial_file_path()
+            continue 
 
-    app = TeacherCoverageApp(schedule_file_absolute_path)
-    
-    if app.critical_error_message:
-        display_fatal_error_gui(app.critical_error_message)
-        return
+        # 3. Run the main input GUI
+        app.create_gui()
+        
+        # Check if the user closed the main GUI (app.date will be empty)
+        if not app.date:
+            return
 
-    # Normal application flow proceeds only if no critical error occurred
-    app.create_gui()
-    
-    # Check for co-teacher assignments after GUI input
-    check_coteachers(app.teacherObjects, schedule_file_absolute_path)
-    
-    coverage_file = "coverage_tracker.json"
-    determineCoverage_and_save(app.teacherObjects, app.date, coverage_file, app.evenDay)
+        # Check if the user requested a file change (app.date will be set, but we handle it in file_dialog_callback)
+        # If file_dialog_callback runs and saves a new path, it calls dpg.stop_dearpygui() which returns control here.
+        # We rely on the `while True` loop to pick up the new path on the next iteration.
 
-    # Print final coverage data to console (for debugging/verification)
-    try:
-        with open(coverage_file, 'r') as f:
-            final_data = json.load(f)
-        print(json.dumps(final_data, indent=4))
-    except:
-        pass
+        # 4. Run coverage logic
+        check_coteachers(app.teacherObjects, schedule_file_path)
+        
+        coverage_file = "coverage_tracker.json"
+        coverage_results_text = determineCoverage_and_save(app.teacherObjects, app.date, coverage_file, app.evenDay)
+
+        # 5. Display the results in a new GUI window
+        display_results_gui(coverage_results_text, app.date)
+        
+        # If the app reaches here, it means the user submitted data and viewed results. 
+        # Since display_results_gui() ends with dpg.stop_dearpygui() (Exit), the program returns here.
+        # We break the main loop to exit the program completely.
+        break 
 
 
 if __name__ == "__main__":
