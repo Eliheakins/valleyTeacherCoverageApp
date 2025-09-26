@@ -34,3 +34,7 @@ Co-Taught Periods: Must strictly follow the pattern: [Standard Periods] CT-[Co-T
 
 4. Special Codes in Duty Columns
 ISS Duty: The text "ISS" must appear anywhere in the duty cell to flag that assignment as ISS coverage. Example: Fry ISS, ISS Fry
+
+Even/Odd duty: " - Even Days" or " - Odd Days" Must appear after the Name in the duty cell. Example Fry - Even Days
+
+Res Duty: " - Res" must appear after the name in the duty cell. Example Fry - Res
