@@ -62,7 +62,7 @@ class TeacherCoverageApp:
         self.teacherObjects, self.critical_error_message = parseSchedule(schedule_filepath) 
         self.evenDay = False
 
-    def validate_and_proceed(self):
+    def validate_and_proceed(self, *args):
         date_string = dpg.get_value("date_input")
         
         # 1. Check Date Format
