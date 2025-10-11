@@ -4,10 +4,28 @@ import json
 import os
 import pandas as pd
 import sys
+from pathlib import Path
 
 # --- CONFIGURATION CONSTANTS ---
 SCHEDULE_FILENAME = "Coverage_Schedule.xlsx"
-CONFIG_FILENAME = "config.json"
+
+# Get proper paths for bundled vs development mode
+def get_app_data_dir():
+    """Returns a writable directory for app data (config, outputs)."""
+    if sys.platform == "darwin":  # macOS
+        app_data = Path.home() / "Library" / "Application Support" / "ValleyCoverageApp"
+    elif sys.platform == "win32":  # Windows
+        app_data = Path(os.getenv("APPDATA", Path.home())) / "ValleyCoverageApp"
+    else:  # Linux/other
+        app_data = Path.home() / ".valleycoverageapp"
+
+    # Create the directory if it doesn't exist
+    app_data.mkdir(parents=True, exist_ok=True)
+    return app_data
+
+# Set config file path to writable location
+APP_DATA_DIR = get_app_data_dir()
+CONFIG_FILENAME = str(APP_DATA_DIR / "config.json")
 # -------------------------------
 
 # --- CONFIGURATION MANAGEMENT FUNCTIONS ---
@@ -62,7 +80,7 @@ class TeacherCoverageApp:
         self.teacherObjects, self.critical_error_message = parseSchedule(schedule_filepath) 
         self.evenDay = False
 
-    def validate_and_proceed(self, *args):
+    def validate_and_proceed(self):
         date_string = dpg.get_value("date_input")
         
         # 1. Check Date Format
@@ -472,7 +490,8 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                     temp_available.update(teacher.oddDayPeriods_available)
                 
                 periods_to_check = [p1]
-                if p2: periods_to_check.append(p2)
+                if p2: 
+                    periods_to_check.append(p2)
                 
                 if all(p in temp_available for p in periods_to_check):
                     for p in periods_to_check:
@@ -492,8 +511,10 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 if (p2 and p1 in teacher.iss_periods_available and p2 in teacher.iss_periods_available) or \
                    (not p2 and p1 in teacher.iss_periods_available):
                     
-                    if p1 in teacher.iss_periods_available: teacher.iss_periods_available.remove(p1)
-                    if p2 and p2 in teacher.iss_periods_available: teacher.iss_periods_available.remove(p2)
+                    if p1 in teacher.iss_periods_available: 
+                        teacher.iss_periods_available.remove(p1)
+                    if p2 and p2 in teacher.iss_periods_available: 
+                        teacher.iss_periods_available.remove(p2)
                         
                     temp_assigned_teacher_name = name
                     temp_iss_covered = True
@@ -505,8 +526,10 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 if (p2 and p1 in teacher.otherDutyPeriods_available and p2 in teacher.otherDutyPeriods_available) or \
                    (not p2 and p1 in teacher.otherDutyPeriods_available):
                     
-                    if p1 in teacher.otherDutyPeriods_available: teacher.otherDutyPeriods_available.remove(p1)
-                    if p2 and p2 in teacher.otherDutyPeriods_available: teacher.otherDutyPeriods_available.remove(p2)
+                    if p1 in teacher.otherDutyPeriods_available: 
+                        teacher.otherDutyPeriods_available.remove(p1)
+                    if p2 and p2 in teacher.otherDutyPeriods_available: 
+                        teacher.otherDutyPeriods_available.remove(p2)
 
                     temp_assigned_teacher_name = name
                     temp_otherDuty_covered = True
@@ -549,9 +572,11 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
 
-    with open(f"coverage_{date}.txt", 'w') as f:
+    # Save coverage output to app data directory
+    output_file = APP_DATA_DIR / f"coverage_{date}.txt"
+    with open(output_file, 'w') as f:
         f.write(outputString)
-    
+
     return outputString
 
 def display_fatal_error_gui(error_message):
@@ -655,8 +680,9 @@ def main():
 
         # 4. Run coverage logic
         check_coteachers(app.teacherObjects, schedule_file_path)
-        
-        coverage_file = "coverage_tracker.json"
+
+        # Use app data directory for coverage tracker
+        coverage_file = str(APP_DATA_DIR / "coverage_tracker.json")
         coverage_results_text = determineCoverage_and_save(app.teacherObjects, app.date, coverage_file, app.evenDay)
 
         # 5. Display the results in a new GUI window
@@ -670,3 +696,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+ 

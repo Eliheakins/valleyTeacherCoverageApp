@@ -1,5 +1,48 @@
-Valley Teacher Coverage Application Guide
+# Valley Teacher Coverage Application
+
 The valleyTeacherCoverageApp is a dedicated tool for calculating daily teacher coverage assignments based on a pre-formatted Excel schedule, optimizing assignments by prioritizing the least-covered staff.
+
+## For End Users
+
+**Download the latest version:** Check the [Releases](https://github.com/Eliheakins/valleyTeacherCoverageApp/releases) page for the latest `.zip` file.
+
+### Installation (macOS)
+1. Download `CoverageApp.zip` from the Releases page
+2. Unzip the file (double-click)
+3. Move `CoverageApp.app` to your Applications folder
+4. Right-click the app and select "Open" (first time only, for macOS security)
+
+---
+
+## For Developers
+
+### Setup
+```bash
+# Clone the repository
+git clone https://github.com/Eliheakins/valleyTeacherCoverageApp.git
+cd valleyTeacherCoverageApp
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Running in Development
+```bash
+python main.py
+```
+
+### Building for Distribution
+```bash
+./build_app.sh
+```
+
+See [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md) for detailed build information.
+
+---
 
 Program Usage
 The application uses a two-stage process: File Configuration and Daily Calculation.
