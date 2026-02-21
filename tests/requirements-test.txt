@@ -1,0 +1,13 @@
+"""
+Requirements for testing
+"""
+
+# Core dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Application dependencies (same as main app)
+dearpygui>=1.11.0
+pandas>=2.0.0
+openpyxl>=3.1.0

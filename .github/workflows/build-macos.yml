@@ -1,0 +1,75 @@
+name: Build macOS App
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+        
+    - name: Build app with PyInstaller
+      run: |
+        pyinstaller build.spec --clean
+        
+    - name: Create DMG
+      run: |
+        # Create a folder for the DMG contents
+        mkdir -p dmg_contents
+        
+        # Copy the app to the folder
+        cp -R "dist/ValleyTeacherCoverage.app" dmg_contents/
+        
+        # Create a symlink to Applications folder
+        ln -s /Applications dmg_contents/Applications
+        
+        # Create DMG
+        hdiutil create -volname "Valley Teacher Coverage" -srcfolder dmg_contents -ov -format UDZO "ValleyTeacherCoverage.dmg"
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: valley-teacher-coverage-macos
+        path: |
+          ValleyTeacherCoverage.dmg
+          dist/ValleyTeacherCoverage.app
+        retention-days: 30
+        
+    - name: Release (only on tags)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ValleyTeacherCoverage.dmg
+          dist/ValleyTeacherCoverage.app
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

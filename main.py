@@ -3,10 +3,8 @@ import datetime
 import json
 import os
 import pandas as pd
-import sys
 
 # --- CONFIGURATION CONSTANTS ---
-SCHEDULE_FILENAME = "Coverage_Schedule.xlsx"
 CONFIG_FILENAME = "config.json"
 # -------------------------------
 
@@ -61,6 +59,7 @@ class TeacherCoverageApp:
         self.schedule_filepath = schedule_filepath 
         self.teacherObjects, self.critical_error_message = parseSchedule(schedule_filepath) 
         self.evenDay = False
+        self.file_changed = False
 
     def validate_and_proceed(self, *args):
         date_string = dpg.get_value("date_input")
@@ -93,16 +92,24 @@ class TeacherCoverageApp:
     def receiveValues_and_stop(self):
         for name in self.teacherObjects.keys():
             self.teacherObjects[name].is_out = dpg.get_value(f"teacher_{name}")
-        self.evenDay = dpg.get_value("even_day_checkbox")
+        self.evenDay = dpg.get_value("day_type_radio") == "Even Day"
         dpg.stop_dearpygui() # Stops DPG loop and returns control to main to run logic
 
     def clear_all_teachers(self):
         """Resets all teacher checkboxes to False."""
         for name in self.teacherObjects.keys():
             dpg.set_value(f"teacher_{name}", False)
+        self.update_selected_count()
+
+    def update_selected_count(self, *args):
+        """Updates the live selected teacher count label."""
+        count = sum(1 for name in self.teacherObjects.keys() if dpg.get_value(f"teacher_{name}"))
+        label = f"{count} teacher{'s' if count != 1 else ''} selected"
+        dpg.set_value("selected_count_text", label)
             
     # --- MODIFIED: ADDED BUTTON CALLBACK TO RE-OPEN FILE DIALOG ---
     def open_file_dialog(self):
+        dpg.configure_item("file_dialog_tag", user_data=self)
         dpg.show_item("file_dialog_tag")
 
     def create_gui(self):
@@ -121,9 +128,24 @@ class TeacherCoverageApp:
                 dpg.add_theme_color(dpg.mvThemeCol_Text, (220, 220, 220, 255))
                 dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 10)
 
+        # Submit button accent theme (muted green)
+        with dpg.theme(tag="submit_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (45, 100, 55, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (60, 130, 70, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (35, 80, 45, 255))
+
+        # De-emphasized theme for secondary buttons
+        with dpg.theme(tag="secondary_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (40, 40, 40, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (55, 55, 55, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 30, 30, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (150, 150, 150, 255))
+
         with dpg.value_registry():
             dpg.add_string_value(default_value=str(datetime.date.today()), tag="date_input")
-            dpg.add_bool_value(default_value=False, tag="even_day_checkbox")
+            dpg.add_string_value(default_value="Odd Day", tag="day_type_radio")
             # Initialize bool sources for each teacher's checkbox state
             for name in self.teacherObjects.keys():
                 dpg.add_bool_value(default_value=False, tag=f"teacher_{name}")
@@ -132,47 +154,78 @@ class TeacherCoverageApp:
         
         with dpg.window(tag="main_window", label="main_window", no_move=True, no_resize=True, no_title_bar=True, pos=(0, 0), width=800, height=800):
             with dpg.group(tag="main_group", horizontal=False):
-                dpg.add_text("Valley Teacher Coverage", tag="title_text")
+                # Title with accent color
+                dpg.add_text("Valley Teacher Coverage", tag="title_text", color=(100, 180, 220, 255))
+                dpg.add_spacer(height=3)
+                dpg.add_separator()
                 dpg.add_spacer(height=5)
-                
-                # --- ADDED: Display current schedule file path ---
+
+                # Schedule file info + de-emphasized change button
                 dpg.add_text(f"Schedule File: {os.path.basename(self.schedule_filepath)}", tag="file_status")
-                dpg.add_button(label="Change Schedule File", callback=self.open_file_dialog)
-                dpg.add_spacer(height=10)
-                # ------------------------------------------------
-                
-                dpg.add_text("Teachers Out:", tag="teachers_label")
+                change_btn = dpg.add_button(label="Change Schedule File", callback=self.open_file_dialog)
+                dpg.bind_item_theme(change_btn, "secondary_btn_theme")
                 dpg.add_spacer(height=5)
-                
-                # Table for clean, two-column layout of checkboxes
-                with dpg.table(header_row=False, resizable=True, policy=dpg.mvTable_SizingStretchSame, borders_outerV=False, borders_innerV=False, borders_outerH=False, borders_innerH=True):
-                    dpg.add_table_column()
-                    dpg.add_table_column()
-                    
-                    teacher_names = list(self.teacherObjects.keys())
-                    for i in range(0, len(teacher_names), 2):
-                        with dpg.table_row():
-                            with dpg.table_cell():
-                                dpg.add_checkbox(label=teacher_names[i], source=f"teacher_{teacher_names[i]}")
+                dpg.add_separator()
+                dpg.add_spacer(height=8)
 
-                            if i + 1 < len(teacher_names):
+                # Teachers Out section
+                with dpg.group(horizontal=True):
+                    dpg.add_text("Teachers Out:", tag="teachers_label")
+                    dpg.add_spacer(width=10)
+                    dpg.add_text("0 teachers selected", tag="selected_count_text", color=(150, 150, 150, 255))
+                dpg.add_spacer(height=5)
+
+                # Scrollable teacher list
+                with dpg.child_window(height=380, border=True):
+                    with dpg.table(header_row=False, resizable=True, policy=dpg.mvTable_SizingStretchSame, borders_outerV=False, borders_innerV=False, borders_outerH=False, borders_innerH=True):
+                        dpg.add_table_column()
+                        dpg.add_table_column()
+                        
+                        teacher_names = list(self.teacherObjects.keys())
+                        for i in range(0, len(teacher_names), 2):
+                            with dpg.table_row():
                                 with dpg.table_cell():
-                                    dpg.add_checkbox(label=teacher_names[i+1], source=f"teacher_{teacher_names[i+1]}")
-                            
+                                    dpg.add_checkbox(
+                                        label=teacher_names[i],
+                                        source=f"teacher_{teacher_names[i]}",
+                                        callback=self.update_selected_count
+                                    )
+                                if i + 1 < len(teacher_names):
+                                    with dpg.table_cell():
+                                        dpg.add_checkbox(
+                                            label=teacher_names[i+1],
+                                            source=f"teacher_{teacher_names[i+1]}",
+                                            callback=self.update_selected_count
+                                        )
+
                 dpg.add_spacer(height=5)
-                
-                # Add Clear All button
                 dpg.add_button(label="Clear All Selections", callback=self.clear_all_teachers, width=-1)
-                dpg.add_spacer(height=5)
+                dpg.add_spacer(height=8)
+                dpg.add_separator()
+                dpg.add_spacer(height=8)
 
-                dpg.add_text("Date (YYYY-MM-DD)")
+                # Date input with today hint
+                dpg.add_text(f"Date (YYYY-MM-DD) — today: {datetime.date.today()}")
                 dpg.add_input_text(source="date_input", width=250)
-                dpg.add_spacer(height=5)
+                dpg.add_spacer(height=8)
+                dpg.add_separator()
+                dpg.add_spacer(height=8)
 
-                dpg.add_checkbox(label="Even Day", source="even_day_checkbox")
-                dpg.add_spacer(height=5)
+                # Even / Odd Day radio buttons
+                dpg.add_text("Day Type:")
+                dpg.add_spacer(height=3)
+                dpg.add_radio_button(
+                    items=["Even Day", "Odd Day"],
+                    source="day_type_radio",
+                    horizontal=True
+                )
+                dpg.add_spacer(height=10)
+                dpg.add_separator()
+                dpg.add_spacer(height=10)
 
-                dpg.add_button(label="Submit", callback=self.validate_and_proceed)
+                # Submit button with accent color
+                submit_btn = dpg.add_button(label="Submit", callback=self.validate_and_proceed, width=-1)
+                dpg.bind_item_theme(submit_btn, "submit_theme")
 
         dpg.bind_item_theme("main_window", "my_custom_theme")
         dpg.set_primary_window("main_window", True)
@@ -197,7 +250,9 @@ def file_dialog_callback(sender, app_data, user_data):
         config['SCHEDULE_FILE_PATH'] = selected_file_path
         save_config(config)
         
-        # 2. Stop DPG so main() can restart the application logic with the new path
+        # 2. Mark that a file change triggered the stop, then stop DPG
+        if user_data and hasattr(user_data, 'file_changed'):
+            user_data.file_changed = True
         dpg.stop_dearpygui()
     else:
         # User cancelled or selected an invalid file, just close the dialog
@@ -224,7 +279,7 @@ def get_initial_file_path():
 
     # Use a temporary window for instructions
     with dpg.window(label="Schedule File Required", no_resize=True, no_close=True, no_title_bar=True, pos=(0, 0), width=600, height=200):
-        dpg.add_text("Please locate and select your 'Coverage_Schedule.xlsx' file.", wrap=550)
+        dpg.add_text("Please locate and select your schedule file (.xlsx or .csv).", wrap=550)
         dpg.add_spacer(height=10)
         dpg.add_button(label="Browse for File", callback=lambda: dpg.show_item("file_dialog_tag"))
 
@@ -238,6 +293,7 @@ def get_initial_file_path():
         height=400
     ):
         dpg.add_file_extension(".xlsx", color=(150, 255, 150, 255))
+        dpg.add_file_extension(".csv", color=(150, 150, 255, 255))
         dpg.add_file_extension("", color=(255, 255, 255, 255)) 
 
     dpg.setup_dearpygui()
@@ -288,7 +344,10 @@ def sort_periods(period_sequence):
     """Sorts periods numerically, handling split periods like '5/6'."""
     
     def sort_key(item):
-        period_str = item[0] if isinstance(item, tuple) else item
+        if isinstance(item, tuple):
+            period_str = str(item[0])
+        else:
+            period_str = str(item)
         try:
             return int(period_str.split('/')[0])
         except (ValueError, IndexError):
@@ -296,49 +355,231 @@ def sort_periods(period_sequence):
 
     return sorted(period_sequence, key=sort_key)
 
+def _is_ct_entry(entry):
+    """More robust CT detection with specific patterns"""
+    entry_lower = str(entry).lower().strip()
+    # Look for specific CT patterns to avoid false positives
+    ct_patterns = [
+        ' ct ',     # "Class CT Smith"
+        'ct ',      # "CT Smith"  
+        ' ct',      # "Class CT"
+        'ct-',      # "CT-Smith"
+        '(ct)',     # "(CT) Smith"
+    ]
+    return any(pattern in entry_lower for pattern in ct_patterns)
+
+def _find_coteacher_in_entry(entry, teacher_name, all_teachers):
+    """Find co-teacher using flexible name matching for CT entries"""
+    entry_lower = str(entry).lower()
+    
+    for name in all_teachers:
+        if name == teacher_name:
+            continue  # Skip self
+            
+        name_lower = name.lower().strip()
+        
+        # Try multiple matching strategies
+        
+        # 1. Full name match (Last, First format)
+        match_pos = entry_lower.find(name_lower)
+        if match_pos != -1:
+            # Check word boundaries
+            end_pos = match_pos + len(name_lower)
+            after_char = entry_lower[end_pos] if end_pos < len(entry_lower) else ''
+            before_char = entry_lower[match_pos - 1] if match_pos > 0 else ''
+            
+            valid_before = match_pos == 0 or not before_char.isalpha()
+            valid_after = end_pos >= len(entry_lower) or not after_char.isalpha()
+            
+            if valid_before and valid_after:
+                return name
+        
+        # 2. First name only match (handle "Class CT Costello" vs "Costello, Elizabeth")
+        if ',' in name_lower:
+            first_name = name_lower.split(',')[1].strip()
+            first_name_pos = entry_lower.find(first_name)
+            if first_name_pos != -1:
+                # Check word boundaries for first name
+                end_pos = first_name_pos + len(first_name)
+                after_char = entry_lower[end_pos] if end_pos < len(entry_lower) else ''
+                before_char = entry_lower[first_name_pos - 1] if first_name_pos > 0 else ''
+                
+                valid_before = first_name_pos == 0 or not before_char.isalpha()
+                valid_after = end_pos >= len(entry_lower) or not after_char.isalpha()
+                
+                if valid_before and valid_after:
+                    return name
+        
+        # 3. Last name only match (handle "CT Smith" vs "Smith, John")
+        last_name = name_lower.split(',')[0].strip()
+        last_name_pos = entry_lower.find(last_name)
+        if last_name_pos != -1:
+            # Check word boundaries for last name
+            end_pos = last_name_pos + len(last_name)
+            after_char = entry_lower[end_pos] if end_pos < len(entry_lower) else ''
+            before_char = entry_lower[last_name_pos - 1] if last_name_pos > 0 else ''
+            
+            valid_before = last_name_pos == 0 or not before_char.isalpha()
+            valid_after = end_pos >= len(entry_lower) or not after_char.isalpha()
+            
+            if valid_before and valid_after:
+                return name
+                
+    return None
+
 def check_coteachers(teachers, filepath):
     """
     Checks the schedule for co-teachers (CT). If a co-teacher for a period is 
     NOT out, the period is removed from the principal teacher's CT coverage list.
     """
-    schedule_df = pd.read_excel(filepath, sheet_name=0) 
+    try:
+        schedule_df = _load_schedule_df(filepath)  # Use same function as parseSchedule
+    except Exception as e:
+        # If we can't load the schedule, skip CT validation
+        print(f"Warning: Could not load schedule for CT validation: {e}")
+        return
+        
     for teacher_key in teachers:
         teacher = teachers[teacher_key]
         if not teacher.is_out:
             continue
-        for period in teacher.periods_need_covered_CT:
+            
+        # Iterate over a copy to avoid mutating the list mid-loop
+        for period in list(teacher.periods_need_covered_CT):
             if '/' in period:
                 period1, period2 = period.split('/')
                 check_periods = [period1.strip(), period2.strip()]
             else:
                 check_periods = [period.strip()]
-            
-            for check_period in check_periods:
-                period_suffex=add_ordinal_suffix(check_period)
-                if period_suffex in schedule_df.columns:
-                    period_data = schedule_df[period_suffex].dropna().astype(str).str.strip().str.lower().tolist()
-                    coteacher_name = None
-                    for entry in period_data:
-                        if 'ct' in entry:
-                            for name in teachers.keys():
-                                if name.strip().lower() in entry.lower():
-                                    if name != teacher.name:
-                                        coteacher_name = name
-                                        break
-                            if coteacher_name:
-                                break
 
-                    if coteacher_name:
-                        if teachers[coteacher_name].is_out:
-                            if period in teachers[coteacher_name].periods_need_covered_CT:
-                                teachers[coteacher_name].periods_need_covered_CT.remove(period)
-                            
-                            if period in teacher.periods_need_covered_CT:
-                                teacher.periods_need_covered_CT.remove(period)
-                                teacher.periods_need_covered.append(period)
-                        else:
-                            if period in teacher.periods_need_covered_CT:
-                                teacher.periods_need_covered_CT.remove(period)
+            # Search all sub-periods to find the co-teacher before making any decision
+            coteacher_name = None
+            for check_period in check_periods:
+                period_suffix = add_ordinal_suffix(check_period)
+                
+                if period_suffix not in schedule_df.columns:
+                    continue
+                    
+                period_data = schedule_df[period_suffix].dropna().astype(str)
+                for entry in period_data:
+                    if _is_ct_entry(entry):
+                        found_name = _find_coteacher_in_entry(entry, teacher.name, teachers.keys())
+                        if found_name:
+                            coteacher_name = found_name
+                            break
+                if coteacher_name:
+                    break
+
+            if coteacher_name:
+                if teachers[coteacher_name].is_out:
+                    # Both teachers out - convert CT to regular coverage for principal teacher only
+                    if period in teachers[coteacher_name].periods_need_covered_CT:
+                        teachers[coteacher_name].periods_need_covered_CT.remove(period)
+                    if period in teacher.periods_need_covered_CT:
+                        teacher.periods_need_covered_CT.remove(period)
+                        # Add to regular coverage but preserve CT information
+                        teacher.periods_need_covered.append(period)
+                        # Mark this period as originally CT for output formatting
+                        if not hasattr(teacher, 'converted_ct_periods'):
+                            teacher.converted_ct_periods = []
+                        teacher.converted_ct_periods.append(period)
+                else:
+                    # Co-teacher present - remove CT need from principal teacher
+                    if period in teacher.periods_need_covered_CT:
+                        teacher.periods_need_covered_CT.remove(period)
+            # If no co-teacher found, keep CT need (data issue but don't break)
+
+
+def _load_schedule_df(filepath):
+    """Loads the schedule file into a DataFrame, handling both .xlsx and .csv formats."""
+    if filepath.endswith('.csv'):
+        schedule_df = pd.read_csv(filepath, header=0, skipinitialspace=True)
+        schedule_df = schedule_df.loc[:, ~schedule_df.columns.str.match('^Unnamed|^$')]
+        schedule_df.columns = schedule_df.columns.str.strip()
+        if 'Name' not in schedule_df.columns:
+            for col in schedule_df.columns:
+                if schedule_df[col].notna().any() and any(schedule_df[col].dropna().astype(str).str.contains(',')):
+                    schedule_df = schedule_df.rename(columns={col: 'Name'})
+                    break
+    else:
+        schedule_df = pd.read_excel(filepath, sheet_name=0)
+    return schedule_df
+
+
+def _parse_name(raw):
+    """
+    Validates and normalises a raw Name cell value.
+    Returns the cleaned name string, or None if the row should be skipped.
+    """
+    if pd.isna(raw) or not raw or str(raw).strip() == '':
+        return None
+    name = str(raw).strip()
+    if (name.lower() in ('name', '', 'nan') or
+            name.startswith('Duty') or
+            name.startswith('Plan') or
+            len(name) < 2):
+        return None
+    if '(' in name:
+        name = name.split('(')[0].strip()
+    return name
+
+
+def _parse_coverage(need_coverage_str):
+    """
+    Parses a Need Coverage cell string into standard and CT period lists.
+    Returns (needs_coverage, needs_coverage_CT).
+    """
+    if need_coverage_str in ('', 'nan', 'None'):
+        return [], []
+    if 'CT' in need_coverage_str:
+        substrings = need_coverage_str.split(' CT-')
+        needs_coverage = unique_and_ordered([s.strip() for s in substrings[0].split(',') if s.strip()])
+        needs_coverage_CT = []
+        if len(substrings) > 1 and substrings[1].strip():
+            needs_coverage_CT = unique_and_ordered([s.strip() for s in substrings[1].split(',') if s.strip()])
+    else:
+        needs_coverage = unique_and_ordered([s.strip() for s in need_coverage_str.split(',') if s.strip()])
+        needs_coverage_CT = []
+    return needs_coverage, needs_coverage_CT
+
+
+def _make_teacher(name, needs_coverage, needs_coverage_CT):
+    """Constructs a new Teacher object from parsed coverage data."""
+    teacher = Teacher(name, sort_periods(needs_coverage))
+    teacher.periods_need_covered_CT = sort_periods(needs_coverage_CT)
+    return teacher
+
+
+def _merge_teacher_periods(existing, needs_coverage, needs_coverage_CT):
+    """Merges new coverage periods into an existing Teacher entry."""
+    existing.periods_need_covered = sort_periods(
+        unique_and_ordered(existing.periods_need_covered + needs_coverage)
+    )
+    existing.periods_need_covered_CT = sort_periods(
+        unique_and_ordered(existing.periods_need_covered_CT + needs_coverage_CT)
+    )
+
+
+def _parse_duties(schedule_df, teachers):
+    """Populates each teacher's availability lists from the Duty columns."""
+    for period in range(1, 12):
+        period_suffix = add_ordinal_suffix(period)
+        duty_col = f'Duty {period_suffix}'
+        if duty_col not in schedule_df.columns:
+            continue
+        for duty_raw in schedule_df[duty_col].dropna():
+            duty_raw = str(duty_raw).strip().lower()
+            duty_type = _classify_duty(duty_raw)
+            for teacher_name, teacher in teachers.items():
+                teacher_name_lower = teacher_name.strip().lower()
+                match_pos = duty_raw.find(teacher_name_lower)
+                if match_pos == -1:
+                    continue
+                end_pos = match_pos + len(teacher_name_lower)
+                after_char = duty_raw[end_pos] if end_pos < len(duty_raw) else ''
+                if after_char.isalpha():
+                    continue
+                _get_duty_list(teacher, duty_type).append(str(period))
 
 
 def parseSchedule(filepath):
@@ -346,75 +587,102 @@ def parseSchedule(filepath):
     Parses the schedule file and returns a tuple: (teachers_dict, error_message or None).
     """
     try:
-        schedule_df = pd.read_excel(filepath, sheet_name=0)
+        schedule_df = _load_schedule_df(filepath)
     except FileNotFoundError:
-        # This error should now be rare if the file selection logic works, 
-        # but kept for robustness.
         return {}, f"File not found at saved path: '{filepath}'. Please re-select the file."
     except Exception as e:
         return {}, f"Failed to read the schedule file. Details: {type(e).__name__}: {e}"
 
     teachers = {}
-    
-    for index, row in schedule_df.iterrows():
-        name = row.get('Name')
-        if pd.isna(name) or not name:
+    for _, row in schedule_df.iterrows():
+        name = _parse_name(row.get('Name'))
+        if not name:
             continue
-        if '(' in name:
-            name = name.split('(')[0].strip()
-
-        need_coverage_str = str(row.get('Need Coverage'))
-        needs_coverage_CT = []
-        needs_coverage = []
-        
-        if "CT" in need_coverage_str:
-            substrings= need_coverage_str.split(" CT-")
-            periods_list = [s.strip() for s in substrings[0].split(",") if s.strip()]
-            needs_coverage = unique_and_ordered(periods_list)
-            
-            if len(substrings) > 1 and substrings[1].strip():
-                periods_ct_list = [s.strip() for s in substrings[1].split(",") if s.strip()]
-                needs_coverage_CT = unique_and_ordered(periods_ct_list)
+        needs_coverage, needs_coverage_CT = _parse_coverage(str(row.get('Need Coverage', '')).strip())
+        # Include teachers even if they have no coverage needs
+        if name in teachers:
+            _merge_teacher_periods(teachers[name], needs_coverage, needs_coverage_CT)
         else:
-            periods_list = [s.strip() for s in need_coverage_str.split(',') if s.strip()]
-            needs_coverage = unique_and_ordered(periods_list)
-        
-        teacher = Teacher(name, sort_periods(needs_coverage)) 
-        teacher.periods_need_covered_CT = sort_periods(needs_coverage_CT)
-        teachers[name] = teacher
-        
-    for period in range(1, 12):
-        period_suffex=add_ordinal_suffix(period)
-        duty_col = f'Duty {period_suffex}'
-        if duty_col in schedule_df.columns:
-            duty_assignments_raw = [str(entry).strip().lower() for entry in schedule_df[duty_col].dropna()]
-            
-            for duty_raw in duty_assignments_raw:
-                duty_raw = duty_raw.strip().lower()
-                
-                iss = "iss" in duty_raw
-                evenDay = "even days" in duty_raw
-                oddDay = "odd days" in duty_raw
-                otherDuty = "-" in duty_raw and not iss and not evenDay and not oddDay
+            teachers[name] = _make_teacher(name, needs_coverage, needs_coverage_CT)
 
-                for teacher_name, teacher in teachers.items():
-                    teacher_full_name_lower = teacher_name.strip().lower()
-                    
-                    if teacher_full_name_lower in duty_raw:
-                        period_to_add = str(period)
-                        
-                        if iss:
-                            teacher.iss_periods_available.append(period_to_add)
-                        elif evenDay:
-                            teacher.evenDayPeriods_available.append(period_to_add)
-                        elif oddDay:
-                            teacher.oddDayPeriods_available.append(period_to_add)
-                        elif otherDuty:
-                            teacher.otherDutyPeriods_available.append(period_to_add)
-                        else:
-                            teacher.periods_available.append(period_to_add)
-                            
+    _parse_duties(schedule_df, teachers)
     return teachers, None
+
+def _classify_duty(duty_raw):
+    """Returns a duty type string based on keywords found in the duty cell text."""
+    if "iss" in duty_raw:       return 'iss'
+    if "even days" in duty_raw: return 'even'
+    if "odd days" in duty_raw:  return 'odd'
+    if "-" in duty_raw:         return 'other'
+    return 'standard'
+
+
+def _get_duty_list(teacher, duty_type):
+    """Returns the correct availability list on a Teacher for a given duty type."""
+    return {
+        'iss':      teacher.iss_periods_available,
+        'even':     teacher.evenDayPeriods_available,
+        'odd':      teacher.oddDayPeriods_available,
+        'other':    teacher.otherDutyPeriods_available,
+        'standard': teacher.periods_available,
+    }[duty_type]
+
+
+def _try_assign_from_list(duty_type, teachers, sorted_available_teachers, periods, evenDay=None):
+    """
+    Attempts to find the least-used available teacher who has all requested
+    periods free in the given duty list. Removes the periods on success.
+    Returns the assigned teacher name, or None.
+    """
+    for name, _ in sorted_available_teachers:
+        teacher = teachers[name]
+
+        if duty_type == 'standard':
+            # Standard availability merges base free periods with day-specific ones
+            avail = set(teacher.periods_available)
+            avail.update(teacher.evenDayPeriods_available if evenDay else teacher.oddDayPeriods_available)
+        else:
+            avail = _get_duty_list(teacher, duty_type)
+
+        if all(p in avail for p in periods):
+            if duty_type == 'standard':
+                # Remove from whichever source list actually held each period
+                for p in periods:
+                    if p in teacher.periods_available:
+                        teacher.periods_available.remove(p)
+                    elif evenDay and p in teacher.evenDayPeriods_available:
+                        teacher.evenDayPeriods_available.remove(p)
+                    elif not evenDay and p in teacher.oddDayPeriods_available:
+                        teacher.oddDayPeriods_available.remove(p)
+            else:
+                target = _get_duty_list(teacher, duty_type)
+                for p in periods:
+                    target.remove(p)
+            return name
+    return None
+
+
+def find_and_assign(p1, teachers, sorted_available_teachers, coverage_data, evenDay, p2=None):
+    """Core logic to find the least-used available teacher for a period (or split period)."""
+    periods = [p1, p2] if p2 else [p1]
+
+    # 1. Check Standard/Day-Dependent Availability
+    name = _try_assign_from_list('standard', teachers, sorted_available_teachers, periods, evenDay)
+    if name:
+        return name, False, False
+
+    # 2. Check ISS Availability (Fallback)
+    name = _try_assign_from_list('iss', teachers, sorted_available_teachers, periods)
+    if name:
+        return name, True, False
+
+    # 3. Check Other Duty Availability (Fallback)
+    name = _try_assign_from_list('other', teachers, sorted_available_teachers, periods)
+    if name:
+        return name, False, True
+
+    return None, False, False
+
 
 def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
     """
@@ -437,11 +705,6 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
             coverage_data[name] = {'times_covered': 0, 'coverage_log': []}
 
     teachers_out = [name for name, teacher in teachers.items() if teacher.is_out]
-    
-    sorted_available_teachers = sorted([
-        (name, data['times_covered']) for name, data in coverage_data.items()
-        if name not in teachers_out and name in teachers
-    ], key=lambda x: x[1])
 
     for teacher_out_name in teachers_out:
         outputString += f"{teacher_out_name}:\n"
@@ -454,73 +717,23 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
             all_periods_to_cover_raw.append((period, True)) 
         
         all_periods_to_cover = sort_periods(all_periods_to_cover_raw) 
-        
-        def find_and_assign(p1, p2=None):
-            """Core logic to find the least-used available teacher for a period (or split period)."""
-            temp_assigned_teacher_name = None
-            temp_iss_covered = False
-            temp_otherDuty_covered = False
-            
-            # 1. Check Standard/Day-Dependent Availability
-            for name, _ in sorted_available_teachers:
-                teacher = teachers[name]
-                
-                temp_available = set(teacher.periods_available)
-                if evenDay:
-                    temp_available.update(teacher.evenDayPeriods_available)
-                else:
-                    temp_available.update(teacher.oddDayPeriods_available)
-                
-                periods_to_check = [p1]
-                if p2: periods_to_check.append(p2)
-                
-                if all(p in temp_available for p in periods_to_check):
-                    for p in periods_to_check:
-                        if p in teacher.periods_available:
-                            teacher.periods_available.remove(p)
-                        elif evenDay and p in teacher.evenDayPeriods_available:
-                            teacher.evenDayPeriods_available.remove(p)
-                        elif not evenDay and p in teacher.oddDayPeriods_available:
-                            teacher.oddDayPeriods_available.remove(p)
-                            
-                    temp_assigned_teacher_name = name
-                    return temp_assigned_teacher_name, temp_iss_covered, temp_otherDuty_covered
-            
-            # 2. Check ISS Availability (Fallback)
-            for name, _ in sorted_available_teachers:
-                teacher = teachers[name]
-                if (p2 and p1 in teacher.iss_periods_available and p2 in teacher.iss_periods_available) or \
-                   (not p2 and p1 in teacher.iss_periods_available):
-                    
-                    if p1 in teacher.iss_periods_available: teacher.iss_periods_available.remove(p1)
-                    if p2 and p2 in teacher.iss_periods_available: teacher.iss_periods_available.remove(p2)
-                        
-                    temp_assigned_teacher_name = name
-                    temp_iss_covered = True
-                    return temp_assigned_teacher_name, temp_iss_covered, temp_otherDuty_covered
-                    
-            # 3. Check Other Duty Availability (Fallback)
-            for name, _ in sorted_available_teachers:
-                teacher = teachers[name]
-                if (p2 and p1 in teacher.otherDutyPeriods_available and p2 in teacher.otherDutyPeriods_available) or \
-                   (not p2 and p1 in teacher.otherDutyPeriods_available):
-                    
-                    if p1 in teacher.otherDutyPeriods_available: teacher.otherDutyPeriods_available.remove(p1)
-                    if p2 and p2 in teacher.otherDutyPeriods_available: teacher.otherDutyPeriods_available.remove(p2)
-
-                    temp_assigned_teacher_name = name
-                    temp_otherDuty_covered = True
-                    return temp_assigned_teacher_name, temp_iss_covered, temp_otherDuty_covered
-
-            return None, False, False
 
         for period, is_ct in all_periods_to_cover:
-            
+            # Re-sort before each assignment to reflect updated coverage counts
+            sorted_available_teachers = sorted([
+                (name, data['times_covered']) for name, data in coverage_data.items()
+                if name not in teachers_out and name in teachers
+            ], key=lambda x: x[1])
+
             if '/' in period:
                 period1, period2 = period.split('/')
-                assigned_teacher_name, iss_covered, otherDuty_covered = find_and_assign(period1, period2)
+                assigned_teacher_name, iss_covered, otherDuty_covered = find_and_assign(
+                    period1, teachers, sorted_available_teachers, coverage_data, evenDay, period2
+                )
             else:
-                assigned_teacher_name, iss_covered, otherDuty_covered = find_and_assign(period)
+                assigned_teacher_name, iss_covered, otherDuty_covered = find_and_assign(
+                    period, teachers, sorted_available_teachers, coverage_data, evenDay
+                )
             
             if assigned_teacher_name:
                 duty_tag = ""
@@ -529,9 +742,10 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 elif otherDuty_covered: 
                     duty_tag = " (OTHER DUTY)"
                 
-                ct_prefix = "   (CT)" if is_ct else "   "
-
-                outputString += f"{ct_prefix}{duty_tag} {period} {assigned_teacher_name}\n"
+                # Check if this period was originally CT (either from CT list or converted CT)
+                is_converted_ct = hasattr(teacher_out_obj, 'converted_ct_periods') and period in teacher_out_obj.converted_ct_periods
+                period_display = f"{period} (CT)" if (is_ct or is_converted_ct) else period
+                outputString += f"   {period_display} {assigned_teacher_name}{duty_tag}\n"
 
                 coverage_data[assigned_teacher_name]['times_covered'] += 1
                 new_log_entry = {
@@ -541,10 +755,8 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
                 }
                 coverage_data[assigned_teacher_name]['coverage_log'].append(new_log_entry)
             else:
-                if is_ct:
-                    outputString += f"   (CT) {period} No available teacher\n"
-                else:
-                    outputString += f"   {period} No available teacher\n"
+                period_display = f"{period} (CT)" if is_ct else period
+                outputString += f"   {period_display} No available teacher\n"
 
     with open(coverage_tracker_json, 'w') as f:
         json.dump(coverage_data, f, indent=4)
@@ -644,14 +856,14 @@ def main():
 
         # 3. Run the main input GUI
         app.create_gui()
-        
+
+        # If the user changed the schedule file, loop to reload with the new path
+        if app.file_changed:
+            continue
+
         # Check if the user closed the main GUI (app.date will be empty)
         if not app.date:
             return
-
-        # Check if the user requested a file change (app.date will be set, but we handle it in file_dialog_callback)
-        # If file_dialog_callback runs and saves a new path, it calls dpg.stop_dearpygui() which returns control here.
-        # We rely on the `while True` loop to pick up the new path on the next iteration.
 
         # 4. Run coverage logic
         check_coteachers(app.teacherObjects, schedule_file_path)

@@ -1,3 +1,29 @@
+# Virtual environments
+venv/
+venv_wsl/
+venv_native/
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Python cache
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+*.pyo
+
+# Local data files
 coverage_tracker.json
 coverage_*.txt
-venv_native/
+config.json
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

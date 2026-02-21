@@ -11,7 +11,7 @@ Launch the Program: Run the compiled executable or the main script (main.py).
 
 File Prompt: A small window will open asking you to locate the schedule file.
 
-Browse and Select: Click "Browse for File" and select the required Excel file: Coverage_Schedule.xlsx.
+Browse and Select: Click "Browse for File" and select your schedule file. Both Excel (.xlsx) and CSV (.csv) formats are supported.
 
 Configuration Saved: Once selected, the program saves the absolute path of this file to a config.json file, so you won't be prompted again unless the file is moved or deleted.
 
@@ -40,7 +40,7 @@ File Output: The results are automatically saved as a date-stamped text file in 
 Exit: Click "Close and Exit" to close the application.
 
 Schedule File Formatting Requirements
-The program relies on very specific Excel formatting. The schedule must be contained within a file named Coverage_Schedule.xlsx.
+The program relies on very specific formatting. The schedule must be contained within an Excel file (.xlsx) or a CSV file (.csv).
 
 1. Column Headers (First Row)
 The following column headers must be present in the first row:
