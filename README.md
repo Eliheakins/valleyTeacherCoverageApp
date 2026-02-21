@@ -1,81 +1,125 @@
-Valley Teacher Coverage Application Guide
-The valleyTeacherCoverageApp is a dedicated tool for calculating daily teacher coverage assignments based on a pre-formatted Excel schedule, optimizing assignments by prioritizing the least-covered staff.
+# Valley Teacher Coverage Application
 
-Program Usage
-The application uses a two-stage process: File Configuration and Daily Calculation.
+A desktop application for calculating daily teacher coverage assignments based on pre-formatted schedule files. Optimizes assignments by prioritizing the least-covered staff while respecting duty constraints and co-teaching relationships.
 
-Stage 1: Initial Setup (Schedule File Selection)
-The first time you run the program, or if the schedule file location has been changed, the application will prompt you to locate the master schedule file.
+## Features
 
-Launch the Program: Run the compiled executable or the main script (main.py).
+- **Smart Assignment Algorithm**: Assigns coverage to teachers with the lowest coverage count first
+- **Co-Teaching Support**: Automatically handles CT (co-taught) periods based on co-teacher availability
+- **Day-Specific Availability**: Respects Even Day/Odd Day duty assignments
+- **Split Period Handling**: Correctly assigns coverage for split periods (e.g., 5/6) to single teachers
+- **Multiple File Formats**: Supports both Excel (.xlsx) and CSV (.csv) schedule files
+- **Coverage Tracking**: Maintains JSON-based coverage history across sessions
+- **Clipboard Integration**: One-click copy of results for easy sharing
+- **Cross-Platform**: Runs on Windows, macOS, and Linux
 
-File Prompt: A small window will open asking you to locate the schedule file.
+---
 
-Browse and Select: Click "Browse for File" and select your schedule file. Both Excel (.xlsx) and CSV (.csv) formats are supported.
+## For End Users
 
-Configuration Saved: Once selected, the program saves the absolute path of this file to a config.json file, so you won't be prompted again unless the file is moved or deleted.
+### Installation
 
-Stage 2: Daily Coverage Calculation
-After the schedule file is loaded, the main input GUI appears.
+#### macOS (via GitHub Actions Build)
+1. Download `ValleyTeacherCoverage.dmg` from the [Releases](../../releases) page
+2. Open the DMG and drag `ValleyTeacherCoverage.app` to your Applications folder
+3. Right-click the app and select "Open" (first time only, for Gatekeeper)
 
-Select Teachers Out: Check the box next to every teacher who is out for the day.
+#### Windows/Linux (From Source)
+1. Download the source code from [Releases](../../releases)
+2. Install Python 3.8 or higher
+3. Install dependencies: `pip install -r requirements.txt`
+4. Run: `python main.py`
 
-Quick Reset: Use the "Clear All Selections" button to quickly deselect all teachers before starting a new entry.
+---
 
-Enter Date: Confirm or edit the date in the YYYY-MM-DD format (e.g., 2025-09-26).
+## Usage Guide
 
-Select Day Type: Check the "Even Day" box if the current day follows the even-day schedule. Leave it unchecked for odd days.
+### First Launch: Schedule File Selection
 
-Submit: Click "Submit" to run the calculation.
+On first run, the app prompts you to select your schedule file:
 
-Stage 3: Results Display and Output
-After submission, the main GUI closes, and a new results window appears.
+1. **Launch** the application
+2. **Browse** for your schedule file (Excel .xlsx or CSV .csv)
+3. **Select** the file and confirm
+4. The file path is saved to `config.json` in your app data directory
 
-GUI Results: The window displays the finalized list of assignments (Who is covering which period for Whom).
+To change the schedule file later, click "Change Schedule File" in the main window.
 
-Copy to Clipboard: Use the "Copy to Clipboard" button to quickly transfer the entire schedule text for pasting into emails, communication apps, or announcements.
+### Daily Coverage Calculation
 
-File Output: The results are automatically saved as a date-stamped text file in the same directory as the program: coverage_YYYY-MM-DD.txt.
+1. **Select Teachers Out**: Check boxes for all absent teachers
+2. **Verify Date**: Confirm or edit the date (YYYY-MM-DD format)
+3. **Select Day Type**: Check "Even Day" for even-day schedules, leave unchecked for odd days
+4. **Submit**: Click "Submit" to calculate coverage
 
-Exit: Click "Close and Exit" to close the application.
+### Results
 
-Schedule File Formatting Requirements
-The program relies on very specific formatting. The schedule must be contained within an Excel file (.xlsx) or a CSV file (.csv).
+The results window displays coverage assignments by teacher, with periods marked `(CT)` for co-taught coverage.
 
-1. Column Headers (First Row)
-The following column headers must be present in the first row:
+**Output Files** (saved to app data directory):
+- `coverage_YYYY-MM-DD.txt` - Human-readable coverage report
+- `coverage_tracker.json` - Coverage statistics for tracking
 
-Teacher Name: Must be exactly Name.
+---
 
-Coverage Needs: Must be exactly Need Coverage.
+## Schedule File Format
 
-Standard Periods: Must be formatted as [Number][Ordinal Suffix] (e.g., 1st, 2nd, 3rd, ... 11th). Periods 1 through 11 should be listed.
+### Required Columns
 
-Duty Periods: Must be formatted as Duty [Number][Ordinal Suffix] (e.g., Duty 1st, Duty 2nd, ... Duty 11th). Matches the corresponding period column.
+| Column | Purpose | Format |
+|--------|---------|--------|
+| `Name` | Teacher names | `Last, First` (e.g., `Smith, John`) |
+| `Need Coverage` | Periods needing coverage | See format below |
+| `1st` through `11th` | Period schedule data | Class assignments, CT markers |
+| `Duty 1st` through `Duty 11th` | Duty assignments | Availability flags |
 
-2. Teacher Naming Conventions
-Name Column: Teacher names should be formatted as [Last Name], [First Name] (e.g., Fry, Philip).
+### Need Coverage Format
 
-Optional Sub Name: You can include the name of the teacher they are covering long-term in parentheses (e.g., Fry, Philip (Leela)). The program ignores the text in parentheses.
+**Standard Periods:** `1,4,11`
 
-Duty Assignments: Any name used inside a Duty [Period] column must exactly match the format found in the Name column (e.g., Fry, Philip ISS or Fry, Philip - Even Days).
+**Split Periods:** `5/6,8/9`
 
-3. "Need Coverage" Column Formatting
-This column dictates which periods need external coverage if the teacher is out.
+**Co-Taught (CT):** `1,4,11 CT-2,5/6,8/9,10`
+- Periods before `CT-`: Always need coverage
+- Periods after `CT-`: Only need coverage if co-teacher is ALSO out
 
-Standard Periods: Simple number strings, comma-separated (e.g., 1, 4, 11).
+### Duty Column Format
 
-Split Periods: Numbers joined by a single slash (/), with no spaces (e.g., 5/6, 8/9). Represents adjacent periods that must be covered by a single available teacher.
+| Duty Type | Format | Example |
+|-----------|--------|---------|
+| Standard | Plain name | `Smith, John` |
+| Even Days | ` - Even Days` suffix | `Smith, John - Even Days` |
+| Odd Days | ` - Odd Days` suffix | `Smith, John - Odd Days` |
+| ISS | Contains `ISS` | `Smith, John ISS` |
+| Other | Contains `-` | `Smith, John - Res` |
 
-Co-Taught Periods: Must STRICTLY use the pattern: [Standard Periods] CT-[Co-Taught Periods]. (e.g., 1,4,11 CT-2,5/6,8/9,10). Periods listed after CT- are only covered if the co-teacher is also out. If the co-teacher is present, coverage is not needed for that period.
+---
 
-4. Special Codes in Duty Columns
-The program uses keywords within the Duty [Period] cells to flag different types of available periods.
+## For Developers
 
-ISS Duty: The text ISS must appear anywhere in the cell (e.g., Fry, Philip ISS). This is prioritized after all standard (non-duty) and day-specific free periods. It is considered a "fallback" coverage.
+### Setup
 
-Even Day Specific: Must include  - Even Days (with leading space and dash) (e.g., Fry, Philip - Even Days). Only available for coverage when "Even Day" is checked in the GUI.
+```bash
+git clone https://github.com/Eliheakins/valleyTeacherCoverageApp.git
+cd valleyTeacherCoverageApp
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-Odd Day Specific: Must include  - Odd Days (with leading space and dash) (e.g., Fry, Philip - Odd Days). Only available for coverage when "Even Day" is not checked in the GUI.
+### Testing
 
-Other Duty: Any duty containing a dash (-) that does not also contain ISS, Even Days, or Odd Days is treated as Other Duty (e.g., Fry, Philip - Res or Fry, Philip - Hall). This is the final "fallback" coverage.
+```bash
+pytest                    # Run all tests
+pytest --cov=main        # With coverage
+```
+
+### Building
+
+See [BUILD.md](BUILD.md) for detailed build instructions.
+
+---
+
+## License
+
+[Add your license here]

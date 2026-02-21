@@ -1,0 +1,264 @@
+================================================================================
+VALLEY TEACHER COVERAGE APP - EXCEL SETUP GUIDE
+================================================================================
+
+This guide explains exactly how to format your Excel schedule file for use with
+the Valley Teacher Coverage Application.
+
+================================================================================
+REQUIRED COLUMNS (First Row Headers)
+================================================================================
+
+Your spreadsheet MUST have these exact column headers in the first row:
+
+1. Name
+2. Need Coverage  
+3. 1st, 2nd, 3rd, 4th, 5th, 6th, 7th, 8th, 9th, 10th, 11th
+4. Duty 1st, Duty 2nd, Duty 3rd, Duty 4th, Duty 5th, Duty 6th, 
+   Duty 7th, Duty 8th, Duty 9th, Duty 10th, Duty 11th
+
+EXAMPLE COLUMN HEADERS (Row 1):
+| Name | Need Coverage | 1st | 2nd | 3rd | 4th | 5th | 6th | 7th | 8th | 9th | 10th | 11th | Duty 1st | Duty 2nd | ... | Duty 11th |
+
+================================================================================
+COLUMN 1: NAME FORMAT
+================================================================================
+
+Format: Last Name, First Name
+
+CORRECT EXAMPLES:
+- Smith, John
+- Johnson, Mary
+- O'Connor, Patrick
+- Van Buren, Martin
+
+OPTIONAL: Add sub-name in parentheses (will be ignored by program)
+- Smith, John (Long Term Sub)
+- Johnson, Mary (Maternity Leave)
+
+INCORRECT (will be skipped):
+- John Smith
+- Duty 1st
+- Plan
+- (blank cells)
+- Single names like "Lunch" or "Faculty"
+
+================================================================================
+COLUMN 2: NEED COVERAGE FORMAT
+================================================================================
+
+This tells the program which periods need coverage when the teacher is out.
+
+FORMAT 1: STANDARD PERIODS (always need coverage)
+Period numbers separated by commas
+Example: 1,4,11
+Example: 2,5,7,10
+
+FORMAT 2: SPLIT PERIODS (adjacent periods, need one teacher for both)
+Use a forward slash with NO spaces
+Example: 5/6,8/9
+Example: 1,4,11,5/6,8/9
+
+FORMAT 3: CO-TAUGHT PERIODS (CT)
+Pattern: [standard periods] CT-[ct periods]
+
+BEFORE CT-: Periods that ALWAYS need coverage
+AFTER CT-: Periods that only need coverage if co-teacher is ALSO out
+
+Examples:
+- 1,4,11 CT-2,5/6,8/9,10
+  (Periods 1,4,11 always need coverage)
+  (Periods 2,5/6,8/9,10 only need coverage if co-teacher is out)
+
+- 1,2,3 CT-4,5
+  (Periods 1,2,3 always need coverage)
+  (Periods 4,5 only need coverage if co-teacher is out)
+
+IMPORTANT: CT periods are identified by looking at the 1st-11th columns
+for entries containing "CT" and the teacher's name.
+
+================================================================================
+COLUMNS 3-13: PERIOD COLUMNS (1st through 11th)
+================================================================================
+
+These columns show what each teacher is scheduled for during each period.
+
+STANDARD ENTRIES (for teacher's own schedule):
+- "Class" - Regular teaching period (counts as unavailable)
+- "Plan" - Planning period (counts as available for coverage)
+- "Lunch" - Lunch period (counts as available for coverage)
+- "Study Hall" - Study hall duty
+- Any class subject name
+
+CO-TEACHING MARKERS (identifies co-teachers):
+The program looks for "CT" in these cells to find co-teachers.
+
+Examples:
+- "Class CT Smith" - Indicates John Smith co-teaches this period
+- "Class CT" - Generic co-teaching marker
+- "Class - CT Johnson" - Alternative format
+
+IMPORTANT: The co-teacher's name must appear in the entry for the program
+to match and identify them.
+
+================================================================================
+COLUMNS 14-24: DUTY COLUMNS (Duty 1st through Duty 11th)
+================================================================================
+
+These columns tell the program when teachers are available for coverage
+during their duty periods.
+
+DUTY TYPE 1: STANDARD FREE PERIOD
+Format: Teacher name only
+Example: Smith, John
+
+This makes the teacher available for coverage during this period.
+No restrictions - they can cover any day.
+
+DUTY TYPE 2: EVEN DAY SPECIFIC
+Format: Teacher name + " - Even Days"
+Example: Smith, John - Even Days
+
+This teacher is ONLY available when "Even Day" is checked in the GUI.
+On odd days, they will not be assigned coverage.
+
+DUTY TYPE 3: ODD DAY SPECIFIC
+Format: Teacher name + " - Odd Days"
+Example: Smith, John - Odd Days
+
+This teacher is ONLY available when "Even Day" is NOT checked in the GUI.
+On even days, they will not be assigned coverage.
+
+DUTY TYPE 4: ISS (In-School Suspension)
+Format: Teacher name + " ISS"
+Example: Smith, John ISS
+
+This is a FALLBACK coverage option. The program will only assign ISS duty
+teacher coverage if no standard or day-specific teachers are available.
+Priority order: Standard > Even/Odd Days > ISS > Other
+
+DUTY TYPE 5: OTHER DUTY
+Format: Teacher name + " - [Duty Name]"
+Example: Smith, John - Res
+Example: Smith, John - Hall Duty
+
+This is the FINAL fallback option. The program uses "Other Duty" teachers
+only when no other options are available. Any duty with a dash that isn't
+ISS, Even Days, or Odd Days falls into this category.
+
+IMPORTANT: Names in duty columns must EXACTLY match the Name column.
+"Smith, John" in Name column must be "Smith, John" in duty column.
+"John Smith" will NOT match.
+
+================================================================================
+COMPLETE EXAMPLE ROW
+================================================================================
+
+Here's a complete example of one teacher's row:
+
+| Name            | Need Coverage              | 1st   | 2nd    | 3rd    | 4th    | 5th   | 6th    | 7th   | 8th    | 9th   | 10th  | 11th  | Duty 1st | Duty 2nd | Duty 3rd | Duty 4th | Duty 5th | Duty 6th | Duty 7th | Duty 8th | Duty 9th | Duty 10th | Duty 11th |
+|-----------------|----------------------------|-------|--------|--------|--------|-------|--------|-------|--------|-------|-------|-------|----------|----------|----------|----------|----------|----------|----------|----------|----------|-----------|-----------|
+| Smith, John     | 1,4,11 CT-2,5/6,8/9,10    | Class | Class  | Plan   | Class  | Class | Lunch  | Class | Class  | Plan  | Class | Class |          |          | Smith, John |          | Smith, John - Even Days |          | Smith, John ISS |          |          |           |           |
+
+This row tells the program:
+
+- Teacher: John Smith
+- Always needs coverage for: Periods 1, 4, 11
+- CT periods (only if co-teacher out): Periods 2, 5/6, 8/9, 10
+- Period 3: Free (Plan period) - available for coverage
+- Period 9: Free (Plan period) - available for coverage
+- Period 6: Lunch - available for coverage
+- Duty 3rd: Standard free - available any day
+- Duty 5th: Even day only - available only on even days
+- Duty 8th: ISS duty - fallback coverage option
+
+================================================================================
+COMMON MISTAKES TO AVOID
+================================================================================
+
+1. WRONG: "John Smith" (first name first)
+   RIGHT: "Smith, John" (last name first)
+
+2. WRONG: "1, 4, 11" (spaces after commas)
+   RIGHT: "1,4,11" (no spaces)
+
+3. WRONG: "5 / 6" (spaces in split period)
+   RIGHT: "5/6" (no spaces)
+
+4. WRONG: "1,4,11 CT - 2,5/6" (spaces in CT marker)
+   RIGHT: "1,4,11 CT-2,5/6" (no spaces, just "CT-")
+
+5. WRONG: Duty column says "John Smith"
+   RIGHT: Duty column says "Smith, John" (must match Name column exactly)
+
+6. WRONG: Missing "Duty" prefix on duty columns
+   RIGHT: Columns must be named "Duty 1st", "Duty 2nd", etc.
+
+7. WRONG: Using lowercase for column headers
+   RIGHT: "Name" not "name", "Need Coverage" not "need coverage"
+
+8. WRONG: "EvenDays" or "Even days" (no space or lowercase)
+   RIGHT: " - Even Days" (with leading space, capital letters)
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+PROBLEM: Teacher shows up but has no coverage needs
+CAUSE: Need Coverage column is blank or says "nan"
+FIX: Add period numbers to Need Coverage column
+
+PROBLEM: CT periods always show for coverage even when co-teacher is present
+CAUSE: Co-teacher name not found in period columns
+FIX: Check that period columns contain "CT" and the teacher name
+
+PROBLEM: Teacher not available for coverage when they should be
+CAUSE: Duty columns don't match Name column exactly
+FIX: Ensure duty entries exactly match "Last, First" format
+
+PROBLEM: Even/Odd day selection has no effect
+CAUSE: Duty columns don't use " - Even Days" or " - Odd Days" format
+FIX: Add the proper suffix with leading space and dash
+
+PROBLEM: ISS teachers never get assigned
+CAUSE: ISS is lowest priority - other teachers are covering first
+FIX: This is expected behavior - ISS is only used as fallback
+
+================================================================================
+FILE FORMAT
+================================================================================
+
+The app supports both Excel (.xlsx) and CSV (.csv) formats.
+
+EXCEL (.xlsx):
+- Save as standard Excel workbook
+- No special formatting required
+- Multiple sheets OK (only first sheet is read)
+
+CSV (.csv):
+- Save with comma separator
+- UTF-8 encoding recommended
+- Headers in first row
+
+================================================================================
+SAMPLE DATA
+================================================================================
+
+Here's a minimal working example you can copy:
+
+Name                | Need Coverage | 1st   | 2nd   | 3rd   | Duty 3rd
+------------------- | ------------- | ----- | ----- | ----- | ---------
+Smith, John         | 2,4           | Class | Class | Plan  | Smith, John
+Johnson, Mary       |               | Class | Class | Class |
+Williams, David     | 1,3           | Class | Plan  | Class | Williams, David ISS
+
+In this example:
+- Smith is out: Needs coverage for periods 2,4. Available period 3.
+- Johnson is present: Doesn't need coverage.
+- Williams is out: Needs coverage for 1,3. Period 2 is ISS (fallback).
+
+================================================================================
+END OF GUIDE
+================================================================================
+
+For additional help, see the main README.md or open an issue on GitHub.
