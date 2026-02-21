@@ -22,7 +22,7 @@ jobs:
         python-version: '3.11'
         
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -54,7 +54,7 @@ jobs:
         hdiutil create -volname "Valley Teacher Coverage" -srcfolder dmg_contents -ov -format UDZO "ValleyTeacherCoverage.dmg"
         
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: valley-teacher-coverage-macos
         path: |
