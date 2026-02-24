@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import pandas as pd
+import re
 import sys
 from pathlib import Path
 
@@ -181,51 +182,112 @@ class TeacherCoverageApp:
         # Set Global Font Scale to 2.0 (Twice the size)
         dpg.set_global_font_scale(2.0)
 
-        # Define custom theme for darker colors
-        with dpg.theme(tag="my_custom_theme"):
+        # Modern Slate/Navy Theme
+        with dpg.theme(tag="modern_theme"):
             with dpg.theme_component(dpg.mvAll):
-                dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (25, 25, 25, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_Button, (60, 60, 60, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (80, 80, 80, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_Text, (220, 220, 220, 255))
-                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 0, 10)
+                # Main background - slate 900
+                dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (15, 23, 42, 255))
+                # Text - slate 100
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (241, 245, 249, 255))
+                # Borders - slate 700
+                dpg.add_theme_color(dpg.mvThemeCol_Border, (51, 65, 85, 255))
+                # Separator - slate 600
+                dpg.add_theme_color(dpg.mvThemeCol_Separator, (71, 85, 105, 255))
+                # Frame background - slate 800
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (30, 41, 59, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (51, 65, 85, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (71, 85, 105, 255))
+                # Rounded corners everywhere
+                dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 12)
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 10)
+                dpg.add_theme_style(dpg.mvStyleVar_GrabRounding, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_PopupRounding, 10)
+                # Better padding
+                dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 20, 20)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 12, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 8, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemInnerSpacing, 8, 6)
 
-        # Submit button accent theme (muted green)
-        with dpg.theme(tag="submit_theme"):
+        # Primary accent button (sky blue)
+        with dpg.theme(tag="primary_btn_theme"):
             with dpg.theme_component(dpg.mvButton):
-                dpg.add_theme_color(dpg.mvThemeCol_Button, (45, 100, 55, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (60, 130, 70, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (35, 80, 45, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (14, 165, 233, 255))  # Sky 500
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (56, 189, 248, 255))  # Sky 400
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (2, 132, 199, 255))  # Sky 600
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 12, 10)
 
-        # De-emphasized theme for secondary buttons
+        # Secondary button (slate)
         with dpg.theme(tag="secondary_btn_theme"):
             with dpg.theme_component(dpg.mvButton):
-                dpg.add_theme_color(dpg.mvThemeCol_Button, (40, 40, 40, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (55, 55, 55, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 30, 30, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_Text, (150, 150, 150, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (51, 65, 85, 255))  # Slate 700
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (71, 85, 105, 255))  # Slate 600
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 41, 59, 255))  # Slate 800
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (148, 163, 184, 255))  # Slate 400
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 8)
 
-        # Time preference theme (for AM/PM toggle)
+        # Time preference button (default state)
         with dpg.theme(tag="am_pm_theme"):
             with dpg.theme_component(dpg.mvButton):
-                dpg.add_theme_color(dpg.mvThemeCol_Button, (40, 40, 40, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (55, 55, 55, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 30, 30, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_Text, (150, 150, 150, 255))
-                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 0)
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (30, 41, 59, 255))  # Slate 800
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (51, 65, 85, 255))  # Slate 700
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (71, 85, 105, 255))  # Slate 600
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (148, 163, 184, 255))  # Slate 400
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 6, 4)
 
+        # Time preference button (selected state - emerald)
         with dpg.theme(tag="am_pm_selected_theme"):
             with dpg.theme_component(dpg.mvButton):
-                dpg.add_theme_color(dpg.mvThemeCol_Button, (100, 180, 220, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (120, 200, 240, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (80, 160, 200, 255))
-                dpg.add_theme_color(dpg.mvThemeCol_Text, (25, 25, 25, 255))
-                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 0)
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (16, 185, 129, 255))  # Emerald 500
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (52, 211, 153, 255))  # Emerald 400
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (5, 150, 105, 255))  # Emerald 600
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (255, 255, 255, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 6)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 6, 4)
+
+        # Card/Child window theme
+        with dpg.theme(tag="card_theme"):
+            with dpg.theme_component(dpg.mvChildWindow):
+                dpg.add_theme_color(dpg.mvThemeCol_ChildBg, (30, 41, 59, 255))  # Slate 800
+                dpg.add_theme_color(dpg.mvThemeCol_Border, (51, 65, 85, 255))  # Slate 700
+                dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 12)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 12, 12)
+
+        # Checkbox theme
+        with dpg.theme(tag="checkbox_theme"):
+            with dpg.theme_component(dpg.mvCheckbox):
+                dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (14, 165, 233, 255))  # Sky 500
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (51, 65, 85, 255))  # Slate 700
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (71, 85, 105, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (14, 165, 233, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 4)
+
+        # Radio button theme
+        with dpg.theme(tag="radio_theme"):
+            with dpg.theme_component(dpg.mvRadioButton):
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (51, 65, 85, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (71, 85, 105, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (14, 165, 233, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (14, 165, 233, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 10)
+
+        # Input text theme
+        with dpg.theme(tag="input_theme"):
+            with dpg.theme_component(dpg.mvInputText):
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (30, 41, 59, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (51, 65, 85, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (51, 65, 85, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (241, 245, 249, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 8)
 
         with dpg.value_registry():
             dpg.add_string_value(default_value=str(datetime.date.today()), tag="date_input")
-            dpg.add_string_value(default_value="Odd Day", tag="day_type_radio")
+            dpg.add_string_value(default_value="Even Day", tag="day_type_radio")
             # Initialize bool sources for each teacher's checkbox state
             for name in self.teacherObjects.keys():
                 dpg.add_bool_value(default_value=False, tag=f"teacher_{name}")
@@ -237,29 +299,34 @@ class TeacherCoverageApp:
         
         with dpg.window(tag="main_window", label="main_window", no_move=True, no_resize=True, no_title_bar=True, pos=(0, 0), width=800, height=800):
             with dpg.group(tag="main_group", horizontal=False):
-                # Title with accent color
-                dpg.add_text("Valley Teacher Coverage", tag="title_text", color=(100, 180, 220, 255))
-                dpg.add_spacer(height=3)
-                dpg.add_separator()
+                # Modern header with accent color
+                with dpg.group(horizontal=True):
+                    dpg.add_text("Valley Teacher Coverage", tag="title_text", color=(56, 189, 248, 255))
                 dpg.add_spacer(height=5)
+                dpg.add_separator()
+                dpg.add_spacer(height=10)
 
-                # Schedule file info + de-emphasized change button
-                dpg.add_text(f"Schedule File: {os.path.basename(self.schedule_filepath)}", tag="file_status")
-                change_btn = dpg.add_button(label="Change Schedule File", callback=self.open_file_dialog)
-                dpg.bind_item_theme(change_btn, "secondary_btn_theme")
-                dpg.add_spacer(height=5)
-                dpg.add_separator()
+                # Schedule file info card (non-scrolling)
+                with dpg.group() as file_card:
+                    with dpg.group(horizontal=True):
+                        dpg.add_text("Schedule:", color=(148, 163, 184, 255))
+                        dpg.add_spacer(width=5)
+                        dpg.add_text(f"{os.path.basename(self.schedule_filepath)}", tag="file_status")
+                    dpg.add_spacer(height=5)
+                    change_btn = dpg.add_button(label="Change Schedule File", callback=self.open_file_dialog)
+                    dpg.bind_item_theme(change_btn, "secondary_btn_theme")
+                dpg.bind_item_theme(file_card, "card_theme")
+                dpg.add_spacer(height=15)
+
+                # Teachers Out section header
+                with dpg.group(horizontal=True):
+                    dpg.add_text("Teachers Out", color=(241, 245, 249, 255))
+                    dpg.add_spacer(width=10)
+                    dpg.add_text("0 teachers selected", tag="selected_count_text", color=(148, 163, 184, 255))
                 dpg.add_spacer(height=8)
 
-                # Teachers Out section
-                with dpg.group(horizontal=True):
-                    dpg.add_text("Teachers Out:", tag="teachers_label")
-                    dpg.add_spacer(width=10)
-                    dpg.add_text("0 teachers selected", tag="selected_count_text", color=(150, 150, 150, 255))
-                dpg.add_spacer(height=5)
-
-                # Scrollable teacher list
-                with dpg.child_window(height=380, border=True):
+                # Scrollable teacher list in card container
+                with dpg.child_window(height=360, border=True) as teacher_card:
                     with dpg.table(header_row=False, resizable=True, policy=dpg.mvTable_SizingStretchProp, borders_outerV=False, borders_innerV=False, borders_outerH=False, borders_innerH=True):
                         dpg.add_table_column()
                         dpg.add_table_column()
@@ -269,20 +336,21 @@ class TeacherCoverageApp:
                             with dpg.table_row():
                                 # First teacher in row
                                 with dpg.table_cell():
-                                    with dpg.group(horizontal=True, horizontal_spacing=5):
-                                        dpg.add_checkbox(
+                                    with dpg.group(horizontal=True, horizontal_spacing=8):
+                                        cb = dpg.add_checkbox(
                                             label=teacher_names[i],
                                             source=f"teacher_{teacher_names[i]}",
                                             callback=self.update_selected_count
                                         )
-                                        dpg.add_spacer(width=2)
+                                        dpg.bind_item_theme(cb, "checkbox_theme")
+                                        dpg.add_spacer(width=4)
                                         time_btn = dpg.add_button(
                                             label="Full",
                                             tag=f"time_pref_btn_{teacher_names[i]}",
                                             callback=self.toggle_time_preference,
                                             user_data=teacher_names[i],
-                                            width=60,
-                                            height=22,
+                                            width=65,
+                                            height=26,
                                             show=False
                                         )
                                         dpg.bind_item_theme(time_btn, "am_pm_theme")
@@ -290,54 +358,70 @@ class TeacherCoverageApp:
                                 # Second teacher in row (if exists)
                                 if i + 1 < len(teacher_names):
                                     with dpg.table_cell():
-                                        with dpg.group(horizontal=True, horizontal_spacing=5):
-                                            dpg.add_checkbox(
+                                        with dpg.group(horizontal=True, horizontal_spacing=8):
+                                            cb = dpg.add_checkbox(
                                                 label=teacher_names[i+1],
                                                 source=f"teacher_{teacher_names[i+1]}",
                                                 callback=self.update_selected_count
                                             )
-                                            dpg.add_spacer(width=2)
+                                            dpg.bind_item_theme(cb, "checkbox_theme")
+                                            dpg.add_spacer(width=4)
                                             time_btn = dpg.add_button(
                                                 label="Full",
                                                 tag=f"time_pref_btn_{teacher_names[i+1]}",
                                                 callback=self.toggle_time_preference,
                                                 user_data=teacher_names[i+1],
-                                                width=60,
-                                                height=22,
+                                                width=65,
+                                                height=26,
                                                 show=False
                                             )
                                             dpg.bind_item_theme(time_btn, "am_pm_theme")
+                dpg.bind_item_theme(teacher_card, "card_theme")
 
+                dpg.add_spacer(height=12)
+                clear_btn = dpg.add_button(label="Clear All Selections", callback=self.clear_all_teachers, width=-1)
+                dpg.bind_item_theme(clear_btn, "secondary_btn_theme")
+                dpg.add_spacer(height=15)
+
+                # Date input section
+                with dpg.group(horizontal=True):
+                    dpg.add_text("Date", color=(148, 163, 184, 255))
+                    dpg.add_spacer(width=5)
+                    dpg.add_text(f"(today: {datetime.date.today()})", color=(100, 116, 139, 255))
+                date_input = dpg.add_input_text(source="date_input", width=280, hint="YYYY-MM-DD")
+                dpg.bind_item_theme(date_input, "input_theme")
+                dpg.add_spacer(height=15)
+
+                # Day Type section with modern radio buttons
+                dpg.add_text("Day Type", color=(148, 163, 184, 255))
                 dpg.add_spacer(height=5)
-                dpg.add_button(label="Clear All Selections", callback=self.clear_all_teachers, width=-1)
-                dpg.add_spacer(height=8)
-                dpg.add_separator()
-                dpg.add_spacer(height=8)
-
-                # Date input with today hint
-                dpg.add_text(f"Date (YYYY-MM-DD) — today: {datetime.date.today()}")
-                dpg.add_input_text(source="date_input", width=250)
-                dpg.add_spacer(height=8)
-                dpg.add_separator()
-                dpg.add_spacer(height=8)
-
-                # Even / Odd Day radio buttons
-                dpg.add_text("Day Type:")
-                dpg.add_spacer(height=3)
-                dpg.add_radio_button(
+                day_radio = dpg.add_radio_button(
                     items=["Even Day", "Odd Day"],
                     source="day_type_radio",
                     horizontal=True
                 )
-                dpg.add_spacer(height=10)
-                dpg.add_separator()
-                dpg.add_spacer(height=10)
+                dpg.bind_item_theme(day_radio, "radio_theme")
+                dpg.add_spacer(height=20)
 
-                # Submit button with accent color
-                submit_btn = dpg.add_button(label="Submit", callback=self.validate_and_proceed, width=-1)
-                dpg.bind_item_theme(submit_btn, "submit_theme")
+                # Submit button with primary theme
+                submit_btn = dpg.add_button(label="Submit", callback=self.validate_and_proceed, width=-1, height=45)
+                dpg.bind_item_theme(submit_btn, "primary_btn_theme")
 
-        dpg.bind_item_theme("main_window", "my_custom_theme")
+            # File dialog configuration (must be inside window context)
+            with dpg.file_dialog(
+                directory_selector=False, 
+                show=False, 
+                callback=file_dialog_callback, 
+                tag="file_dialog_tag", 
+                width=700, 
+                height=400,
+                user_data=self
+            ):
+                dpg.add_file_extension(".xlsx", color=(56, 211, 159, 255))
+                dpg.add_file_extension(".csv", color=(56, 189, 248, 255))
+                dpg.add_file_extension("", color=(148, 163, 184, 255)) 
+
+        dpg.bind_item_theme("main_window", "modern_theme")
         dpg.set_primary_window("main_window", True)
         
         dpg.setup_dearpygui()
@@ -467,7 +551,9 @@ def sort_periods(period_sequence):
 
 def _is_ct_entry(entry):
     """More robust CT detection with specific patterns"""
-    entry_lower = str(entry).lower().strip()
+    # Sanitize the entry first to handle formatting issues
+    sanitized = _sanitize_period_entry(entry).lower()
+    
     # Look for specific CT patterns to avoid false positives
     ct_patterns = [
         ' ct ',     # "Class CT Smith"
@@ -476,11 +562,12 @@ def _is_ct_entry(entry):
         'ct-',      # "CT-Smith"
         '(ct)',     # "(CT) Smith"
     ]
-    return any(pattern in entry_lower for pattern in ct_patterns)
+    return any(pattern in sanitized for pattern in ct_patterns)
 
 def _find_coteacher_in_entry(entry, teacher_name, all_teachers):
     """Find co-teacher using flexible name matching for CT entries"""
-    entry_lower = str(entry).lower()
+    # Sanitize the entry first to handle formatting issues
+    sanitized = _sanitize_period_entry(entry).lower()
     
     for name in all_teachers:
         if name == teacher_name:
@@ -491,15 +578,15 @@ def _find_coteacher_in_entry(entry, teacher_name, all_teachers):
         # Try multiple matching strategies
         
         # 1. Full name match (Last, First format)
-        match_pos = entry_lower.find(name_lower)
+        match_pos = sanitized.find(name_lower)
         if match_pos != -1:
             # Check word boundaries
             end_pos = match_pos + len(name_lower)
-            after_char = entry_lower[end_pos] if end_pos < len(entry_lower) else ''
-            before_char = entry_lower[match_pos - 1] if match_pos > 0 else ''
+            after_char = sanitized[end_pos] if end_pos < len(sanitized) else ''
+            before_char = sanitized[match_pos - 1] if match_pos > 0 else ''
             
             valid_before = match_pos == 0 or not before_char.isalpha()
-            valid_after = end_pos >= len(entry_lower) or not after_char.isalpha()
+            valid_after = end_pos >= len(sanitized) or not after_char.isalpha()
             
             if valid_before and valid_after:
                 return name
@@ -507,30 +594,30 @@ def _find_coteacher_in_entry(entry, teacher_name, all_teachers):
         # 2. First name only match (handle "Class CT Costello" vs "Costello, Elizabeth")
         if ',' in name_lower:
             first_name = name_lower.split(',')[1].strip()
-            first_name_pos = entry_lower.find(first_name)
+            first_name_pos = sanitized.find(first_name)
             if first_name_pos != -1:
                 # Check word boundaries for first name
                 end_pos = first_name_pos + len(first_name)
-                after_char = entry_lower[end_pos] if end_pos < len(entry_lower) else ''
-                before_char = entry_lower[first_name_pos - 1] if first_name_pos > 0 else ''
+                after_char = sanitized[end_pos] if end_pos < len(sanitized) else ''
+                before_char = sanitized[first_name_pos - 1] if first_name_pos > 0 else ''
                 
                 valid_before = first_name_pos == 0 or not before_char.isalpha()
-                valid_after = end_pos >= len(entry_lower) or not after_char.isalpha()
+                valid_after = end_pos >= len(sanitized) or not after_char.isalpha()
                 
                 if valid_before and valid_after:
                     return name
         
         # 3. Last name only match (handle "CT Smith" vs "Smith, John")
         last_name = name_lower.split(',')[0].strip()
-        last_name_pos = entry_lower.find(last_name)
+        last_name_pos = sanitized.find(last_name)
         if last_name_pos != -1:
             # Check word boundaries for last name
             end_pos = last_name_pos + len(last_name)
-            after_char = entry_lower[end_pos] if end_pos < len(entry_lower) else ''
-            before_char = entry_lower[last_name_pos - 1] if last_name_pos > 0 else ''
+            after_char = sanitized[end_pos] if end_pos < len(sanitized) else ''
+            before_char = sanitized[last_name_pos - 1] if last_name_pos > 0 else ''
             
             valid_before = last_name_pos == 0 or not before_char.isalpha()
-            valid_after = end_pos >= len(entry_lower) or not after_char.isalpha()
+            valid_after = end_pos >= len(sanitized) or not after_char.isalpha()
             
             if valid_before and valid_after:
                 return name
@@ -634,11 +721,57 @@ def _parse_name(raw):
     return name
 
 
+def _sanitize_need_coverage(need_coverage_str):
+    """
+    Sanitizes the Need Coverage string to fix common formatting issues:
+    - Removes spaces after commas: "1, 4, 11" -> "1,4,11"
+    - Removes spaces around forward slashes: "5 / 6" -> "5/6"
+    - Normalizes whitespace around CT markers: "CT -" -> "CT-"
+    """
+    if not need_coverage_str or need_coverage_str in ('', 'nan', 'None'):
+        return ''
+    
+    # Remove spaces after commas
+    sanitized = need_coverage_str.replace(', ', ',')
+    
+    # Remove spaces around forward slashes (for split periods)
+    sanitized = sanitized.replace(' / ', '/').replace(' /', '/').replace('/ ', '/')
+    
+    # Normalize CT marker whitespace: "CT -" -> "CT-"
+    sanitized = sanitized.replace('CT -', 'CT-').replace('CT  ', 'CT ')
+    
+    return sanitized
+
+
+def _sanitize_period_entry(period_value):
+    """
+    Sanitizes a period cell entry to normalize CT formatting:
+    - Collapses multiple spaces to single space: "Class CT                        Enciso" -> "Class CT Enciso"
+    - Normalizes various CT formats to standard "Class CT [Name]"
+    """
+    if not period_value or pd.isna(period_value):
+        return ''
+    
+    sanitized = str(period_value).strip()
+    
+    # Collapse multiple whitespace to single space
+    sanitized = re.sub(r'\s+', ' ', sanitized)
+    
+    # Normalize CT markers: remove asterisks, standardize spacing
+    sanitized = sanitized.replace('*Class CT', 'Class CT')
+    sanitized = sanitized.replace('*CT', 'CT')
+    
+    return sanitized
+
+
 def _parse_coverage(need_coverage_str):
     """
     Parses a Need Coverage cell string into standard and CT period lists.
     Returns (needs_coverage, needs_coverage_CT).
     """
+    # Sanitize the input first
+    need_coverage_str = _sanitize_need_coverage(need_coverage_str)
+    
     if need_coverage_str in ('', 'nan', 'None'):
         return [], []
     if 'CT' in need_coverage_str:
@@ -692,6 +825,39 @@ def _parse_duties(schedule_df, teachers):
                 _get_duty_list(teacher, duty_type).append(str(period))
 
 
+def _detect_ct_periods_from_row(row, needs_coverage):
+    """
+    Analyzes period columns to identify which periods are co-taught (CT).
+    Returns (regular_periods, ct_periods) tuple.
+    
+    For each period in needs_coverage, checks the corresponding period column
+    for 'CT' marker. If found, period goes to ct_periods, otherwise regular_periods.
+    """
+    if not needs_coverage:
+        return [], []
+    
+    regular_periods = []
+    ct_periods = []
+    
+    for period in needs_coverage:
+        # Get the column name for this period (e.g., '1st', '2nd', '5th')
+        period_col = add_ordinal_suffix(period)
+        
+        # Get and sanitize the period value
+        period_value = _sanitize_period_entry(row.get(period_col, ''))
+        
+        # Use same CT detection logic as _is_ct_entry
+        ct_patterns = [' ct ', 'ct ', ' ct', 'ct-', '(ct)']
+        is_ct = any(pattern in period_value.lower() for pattern in ct_patterns)
+        
+        if is_ct:
+            ct_periods.append(period)
+        else:
+            regular_periods.append(period)
+    
+    return regular_periods, ct_periods
+
+
 def parseSchedule(filepath):
     """
     Parses the schedule file and returns a tuple: (teachers_dict, error_message or None).
@@ -709,6 +875,11 @@ def parseSchedule(filepath):
         if not name:
             continue
         needs_coverage, needs_coverage_CT = _parse_coverage(str(row.get('Need Coverage', '')).strip())
+        
+        # Auto-detect CT periods from period columns if no CT- format in Need Coverage
+        if not needs_coverage_CT and needs_coverage:
+            needs_coverage, needs_coverage_CT = _detect_ct_periods_from_row(row, needs_coverage)
+        
         # Include teachers even if they have no coverage needs
         if name in teachers:
             _merge_teacher_periods(teachers[name], needs_coverage, needs_coverage_CT)
@@ -941,10 +1112,23 @@ def display_fatal_error_gui(error_message):
 
 def display_results_gui(results_text, date):
     """
-    Displays the coverage results in a new DearPyGui window.
+    Displays the coverage results in a new DearPyGui window with modern theme.
     """
     dpg.create_context()
     dpg.set_global_font_scale(1.5) 
+
+    # Modern theme for results window
+    with dpg.theme(tag="results_modern_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (15, 23, 42, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (241, 245, 249, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (30, 41, 59, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (14, 165, 233, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (56, 189, 248, 255))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (2, 132, 199, 255))
+            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 8)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 12)
+            dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 20, 20)
 
     def copy_results_to_clipboard():
         dpg.set_clipboard_text(dpg.get_value("results_text_output"))
@@ -955,24 +1139,30 @@ def display_results_gui(results_text, date):
     dpg.create_viewport(title=f'Coverage Results - {date}', width=650, height=800)
     
     with dpg.window(tag="results_window", label="Coverage Results", no_move=True, no_resize=True, no_title_bar=True, pos=(0, 0), width=650, height=800):
-        dpg.add_text("Coverage Calculated Successfully!", color=(100, 255, 100, 255))
-        dpg.add_spacer(height=5)
+        dpg.add_text("✓ Coverage Calculated Successfully!", color=(52, 211, 153, 255))
+        dpg.add_spacer(height=15)
         
-        dpg.add_input_text(
-            tag="results_text_output", 
-            default_value=results_text, 
-            multiline=True, 
-            readonly=True, 
-            width=-1, 
-            height=650
-        )
-        dpg.add_spacer(height=10)
+        # Results in a card-like container
+        with dpg.child_window(height=650, border=True) as results_card:
+            dpg.add_input_text(
+                tag="results_text_output", 
+                default_value=results_text, 
+                multiline=True, 
+                readonly=True, 
+                width=-1, 
+                height=-1
+            )
+        dpg.bind_item_theme(results_card, "card_theme")
+        dpg.add_spacer(height=15)
 
-        dpg.add_button(label="Copy to Clipboard", callback=copy_results_to_clipboard, width=-1)
-        dpg.add_spacer(height=5)
+        with dpg.group(horizontal=True):
+            copy_btn = dpg.add_button(label="Copy to Clipboard", callback=copy_results_to_clipboard, width=300)
+            dpg.bind_item_theme(copy_btn, "secondary_btn_theme")
+            dpg.add_spacer(width=10)
+            close_btn = dpg.add_button(label="Close and Exit", callback=lambda: dpg.stop_dearpygui(), width=300)
+            dpg.bind_item_theme(close_btn, "primary_btn_theme")
 
-        dpg.add_button(label="Close and Exit", callback=lambda: dpg.stop_dearpygui(), width=-1)
-
+    dpg.bind_item_theme("results_window", "results_modern_theme")
     dpg.set_primary_window("results_window", True)
     dpg.setup_dearpygui()
     dpg.show_viewport()

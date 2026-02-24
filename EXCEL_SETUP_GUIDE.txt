@@ -44,6 +44,20 @@ INCORRECT (will be skipped):
 - Single names like "Lunch" or "Faculty"
 
 ================================================================================
+AUTOMATIC SANITIZATION (NEW)
+================================================================================
+
+The app now automatically sanitizes common formatting issues:
+
+✅ Spaces after commas: "1, 4, 11" → "1,4,11"
+✅ Spaces around slashes: "5 / 6" → "5/6"  
+✅ Excessive whitespace: "Class CT                        Smith" → "Class CT Smith"
+✅ Asterisks: "*Class CT" → "Class CT"
+
+You no longer need to manually fix these formatting issues - the app handles
+them automatically during import.
+
+================================================================================
 COLUMN 2: NEED COVERAGE FORMAT
 ================================================================================
 
@@ -59,23 +73,22 @@ Use a forward slash with NO spaces
 Example: 5/6,8/9
 Example: 1,4,11,5/6,8/9
 
-FORMAT 3: CO-TAUGHT PERIODS (CT)
-Pattern: [standard periods] CT-[ct periods]
+FORMAT 3: CO-TAUGHT PERIODS (CT) - AUTOMATICALLY DETECTED
 
-BEFORE CT-: Periods that ALWAYS need coverage
-AFTER CT-: Periods that only need coverage if co-teacher is ALSO out
+The app now automatically detects CT periods by scanning the 1st-11th columns
+for "CT" markers. You do NOT need to use the CT- format in Need Coverage.
 
-Examples:
-- 1,4,11 CT-2,5/6,8/9,10
-  (Periods 1,4,11 always need coverage)
-  (Periods 2,5/6,8/9,10 only need coverage if co-teacher is out)
+Simply list all periods that need coverage:
+Example: 1,2,3,4,5/6
 
-- 1,2,3 CT-4,5
-  (Periods 1,2,3 always need coverage)
-  (Periods 4,5 only need coverage if co-teacher is out)
+The app will check the period columns:
+- If a period column contains "CT" → marked as co-taught
+- If no "CT" found → marked as regular coverage
 
-IMPORTANT: CT periods are identified by looking at the 1st-11th columns
-for entries containing "CT" and the teacher's name.
+OPTIONAL LEGACY FORMAT:
+If you prefer, you can still use the old format: 1,4,11 CT-2,5/6,8/9,10
+- Periods before CT-: Always need coverage
+- Periods after CT-: Only need coverage if co-teacher is ALSO out
 
 ================================================================================
 COLUMNS 3-13: PERIOD COLUMNS (1st through 11th)
@@ -99,7 +112,22 @@ Examples:
 - "Class - CT Johnson" - Alternative format
 
 IMPORTANT: The co-teacher's name must appear in the entry for the program
-to match and identify them.
+to match and identify them. The app sanitizes formatting automatically.
+
+================================================================================
+AM/PM COVERAGE PREFERENCE (NEW)
+================================================================================
+
+When selecting teachers who are out, you can now set AM/PM coverage preferences:
+
+- **Full** (default): Teacher needs coverage for all periods
+- **AM**: Teacher only needs coverage for periods 1-4
+- **PM**: Teacher only needs coverage for periods 5-11
+
+To use: Check the teacher, then click the toggle button that appears to cycle
+through Full → AM → PM → Full.
+
+This helps when a teacher is only out for half the day.
 
 ================================================================================
 COLUMNS 14-24: DUTY COLUMNS (Duty 1st through Duty 11th)

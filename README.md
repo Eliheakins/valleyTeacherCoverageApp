@@ -64,34 +64,17 @@ The results window displays coverage assignments by teacher, with periods marked
 
 ## Schedule File Format
 
-### Required Columns
+The app requires a schedule file in Excel (.xlsx) or CSV (.csv) format.
 
-| Column | Purpose | Format |
-|--------|---------|--------|
-| `Name` | Teacher names | `Last, First` (e.g., `Smith, John`) |
-| `Need Coverage` | Periods needing coverage | See format below |
-| `1st` through `11th` | Period schedule data | Class assignments, CT markers |
-| `Duty 1st` through `Duty 11th` | Duty assignments | Availability flags |
+**Required Columns:**
+- `Name` - Teacher names in "Last, First" format
+- `Need Coverage` - Periods needing coverage (e.g., "1,4,11" or "5/6")
+- `1st` through `11th` - Period schedule data with CT markers
+- `Duty 1st` through `Duty 11th` - Duty assignments for availability
 
-### Need Coverage Format
+**See [EXCEL_SETUP_GUIDE.txt](EXCEL_SETUP_GUIDE.txt) for complete formatting details.**
 
-**Standard Periods:** `1,4,11`
-
-**Split Periods:** `5/6,8/9`
-
-**Co-Taught (CT):** `1,4,11 CT-2,5/6,8/9,10`
-- Periods before `CT-`: Always need coverage
-- Periods after `CT-`: Only need coverage if co-teacher is ALSO out
-
-### Duty Column Format
-
-| Duty Type | Format | Example |
-|-----------|--------|---------|
-| Standard | Plain name | `Smith, John` |
-| Even Days | ` - Even Days` suffix | `Smith, John - Even Days` |
-| Odd Days | ` - Odd Days` suffix | `Smith, John - Odd Days` |
-| ISS | Contains `ISS` | `Smith, John ISS` |
-| Other | Contains `-` | `Smith, John - Res` |
+The app now automatically handles common formatting issues (spaces, extra whitespace, etc.) and auto-detects co-taught periods.
 
 ---
 
