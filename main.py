@@ -70,6 +70,7 @@ class Teacher:
         self.otherDutyPeriods_available = [] 
         self.evenDayPeriods_available = []
         self.oddDayPeriods_available = []
+        self.coverage_time_preference = None  # None = Full day, 'AM' = periods 1-4, 'PM' = periods 5-11
 
 class TeacherCoverageApp:
     def __init__(self, schedule_filepath):
@@ -111,20 +112,63 @@ class TeacherCoverageApp:
     def receiveValues_and_stop(self):
         for name in self.teacherObjects.keys():
             self.teacherObjects[name].is_out = dpg.get_value(f"teacher_{name}")
+            # Get time preference and convert string "None" to Python None
+            time_pref = dpg.get_value(f"teacher_time_pref_{name}")
+            self.teacherObjects[name].coverage_time_preference = None if time_pref == "None" else time_pref
         self.evenDay = dpg.get_value("day_type_radio") == "Even Day"
         dpg.stop_dearpygui() # Stops DPG loop and returns control to main to run logic
 
     def clear_all_teachers(self):
-        """Resets all teacher checkboxes to False."""
+        """Resets all teacher checkboxes to False and time preferences to None."""
         for name in self.teacherObjects.keys():
             dpg.set_value(f"teacher_{name}", False)
+            dpg.set_value(f"teacher_time_pref_{name}", "None")
         self.update_selected_count()
 
-    def update_selected_count(self, *args):
-        """Updates the live selected teacher count label."""
+    def toggle_time_preference(self, sender, app_data, user_data):
+        """Cycles through time preference states: None -> AM -> PM -> None"""
+        teacher_name = user_data
+        current_pref = dpg.get_value(f"teacher_time_pref_{teacher_name}")
+        
+        # Cycle: None -> AM -> PM -> None
+        if current_pref == "None":
+            new_pref = "AM"
+        elif current_pref == "AM":
+            new_pref = "PM"
+        else:
+            new_pref = "None"
+        
+        dpg.set_value(f"teacher_time_pref_{teacher_name}", new_pref)
+        self.update_time_pref_button_appearance(teacher_name)
+
+    def update_time_pref_button_appearance(self, teacher_name):
+        """Updates the button appearance based on current time preference"""
+        current_pref = dpg.get_value(f"teacher_time_pref_{teacher_name}")
+        
+        if current_pref == "None":
+            dpg.configure_item(f"time_pref_btn_{teacher_name}", label="Full")
+            dpg.bind_item_theme(f"time_pref_btn_{teacher_name}", "am_pm_theme")
+        elif current_pref == "AM":
+            dpg.configure_item(f"time_pref_btn_{teacher_name}", label="AM")
+            dpg.bind_item_theme(f"time_pref_btn_{teacher_name}", "am_pm_selected_theme")
+        else:  # PM
+            dpg.configure_item(f"time_pref_btn_{teacher_name}", label="PM")
+            dpg.bind_item_theme(f"time_pref_btn_{teacher_name}", "am_pm_selected_theme")
+
+    def update_selected_count(self, sender=None, app_data=None, user_data=None):
+        """Updates the live selected teacher count label and button visibility."""
+        # Update count
         count = sum(1 for name in self.teacherObjects.keys() if dpg.get_value(f"teacher_{name}"))
         label = f"{count} teacher{'s' if count != 1 else ''} selected"
         dpg.set_value("selected_count_text", label)
+        
+        # Update button visibility based on checkbox state
+        for name in self.teacherObjects.keys():
+            is_checked = dpg.get_value(f"teacher_{name}")
+            if is_checked:
+                dpg.show_item(f"time_pref_btn_{name}")
+            else:
+                dpg.hide_item(f"time_pref_btn_{name}")
             
     # --- MODIFIED: ADDED BUTTON CALLBACK TO RE-OPEN FILE DIALOG ---
     def open_file_dialog(self):
@@ -162,12 +206,32 @@ class TeacherCoverageApp:
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 30, 30, 255))
                 dpg.add_theme_color(dpg.mvThemeCol_Text, (150, 150, 150, 255))
 
+        # Time preference theme (for AM/PM toggle)
+        with dpg.theme(tag="am_pm_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (40, 40, 40, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (55, 55, 55, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 30, 30, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (150, 150, 150, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 0)
+
+        with dpg.theme(tag="am_pm_selected_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button, (100, 180, 220, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (120, 200, 240, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (80, 160, 200, 255))
+                dpg.add_theme_color(dpg.mvThemeCol_Text, (25, 25, 25, 255))
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 2, 0)
+
         with dpg.value_registry():
             dpg.add_string_value(default_value=str(datetime.date.today()), tag="date_input")
             dpg.add_string_value(default_value="Odd Day", tag="day_type_radio")
             # Initialize bool sources for each teacher's checkbox state
             for name in self.teacherObjects.keys():
                 dpg.add_bool_value(default_value=False, tag=f"teacher_{name}")
+            # Initialize string values for each teacher's time preference (None, 'AM', 'PM')
+            for name in self.teacherObjects.keys():
+                dpg.add_string_value(default_value="None", tag=f"teacher_time_pref_{name}")
 
         dpg.create_viewport(title='Teacher Coverage', width=800, height=800)
         
@@ -196,26 +260,53 @@ class TeacherCoverageApp:
 
                 # Scrollable teacher list
                 with dpg.child_window(height=380, border=True):
-                    with dpg.table(header_row=False, resizable=True, policy=dpg.mvTable_SizingStretchSame, borders_outerV=False, borders_innerV=False, borders_outerH=False, borders_innerH=True):
+                    with dpg.table(header_row=False, resizable=True, policy=dpg.mvTable_SizingStretchProp, borders_outerV=False, borders_innerV=False, borders_outerH=False, borders_innerH=True):
                         dpg.add_table_column()
                         dpg.add_table_column()
                         
                         teacher_names = list(self.teacherObjects.keys())
                         for i in range(0, len(teacher_names), 2):
                             with dpg.table_row():
+                                # First teacher in row
                                 with dpg.table_cell():
-                                    dpg.add_checkbox(
-                                        label=teacher_names[i],
-                                        source=f"teacher_{teacher_names[i]}",
-                                        callback=self.update_selected_count
-                                    )
-                                if i + 1 < len(teacher_names):
-                                    with dpg.table_cell():
+                                    with dpg.group(horizontal=True, horizontal_spacing=5):
                                         dpg.add_checkbox(
-                                            label=teacher_names[i+1],
-                                            source=f"teacher_{teacher_names[i+1]}",
+                                            label=teacher_names[i],
+                                            source=f"teacher_{teacher_names[i]}",
                                             callback=self.update_selected_count
                                         )
+                                        dpg.add_spacer(width=2)
+                                        time_btn = dpg.add_button(
+                                            label="Full",
+                                            tag=f"time_pref_btn_{teacher_names[i]}",
+                                            callback=self.toggle_time_preference,
+                                            user_data=teacher_names[i],
+                                            width=60,
+                                            height=22,
+                                            show=False
+                                        )
+                                        dpg.bind_item_theme(time_btn, "am_pm_theme")
+                                
+                                # Second teacher in row (if exists)
+                                if i + 1 < len(teacher_names):
+                                    with dpg.table_cell():
+                                        with dpg.group(horizontal=True, horizontal_spacing=5):
+                                            dpg.add_checkbox(
+                                                label=teacher_names[i+1],
+                                                source=f"teacher_{teacher_names[i+1]}",
+                                                callback=self.update_selected_count
+                                            )
+                                            dpg.add_spacer(width=2)
+                                            time_btn = dpg.add_button(
+                                                label="Full",
+                                                tag=f"time_pref_btn_{teacher_names[i+1]}",
+                                                callback=self.toggle_time_preference,
+                                                user_data=teacher_names[i+1],
+                                                width=60,
+                                                height=22,
+                                                show=False
+                                            )
+                                            dpg.bind_item_theme(time_btn, "am_pm_theme")
 
                 dpg.add_spacer(height=5)
                 dpg.add_button(label="Clear All Selections", callback=self.clear_all_teachers, width=-1)
@@ -647,6 +738,37 @@ def _get_duty_list(teacher, duty_type):
     }[duty_type]
 
 
+def _filter_periods_by_time_preference(periods, time_preference):
+    """
+    Filters a list of periods based on time preference.
+    AM = periods 1-4, PM = periods 5-11, None = all periods.
+    Handles split periods like '5/6' by checking the first part.
+    """
+    if time_preference is None:
+        return periods
+    
+    def get_period_number(period):
+        """Extract numeric period value, handling split periods like '5/6'"""
+        period_str = str(period)
+        if '/' in period_str:
+            # For split periods like '5/6', use the first period
+            return int(period_str.split('/')[0])
+        try:
+            return int(period_str)
+        except ValueError:
+            return 99  # Unknown periods go to end
+    
+    filtered = []
+    for period in periods:
+        period_num = get_period_number(period)
+        if time_preference == 'AM' and 1 <= period_num <= 4:
+            filtered.append(period)
+        elif time_preference == 'PM' and 5 <= period_num <= 11:
+            filtered.append(period)
+    
+    return filtered
+
+
 def _try_assign_from_list(duty_type, teachers, sorted_available_teachers, periods, evenDay=None):
     """
     Attempts to find the least-used available teacher who has all requested
@@ -730,9 +852,20 @@ def determineCoverage_and_save(teachers, date, coverage_tracker_json, evenDay):
         teacher_out_obj = teachers[teacher_out_name]
 
         all_periods_to_cover_raw = []
-        for period in teacher_out_obj.periods_need_covered:
+        # Filter periods based on time preference
+        filtered_periods = _filter_periods_by_time_preference(
+            teacher_out_obj.periods_need_covered,
+            teacher_out_obj.coverage_time_preference
+        )
+        for period in filtered_periods:
             all_periods_to_cover_raw.append((period, False)) 
-        for period in teacher_out_obj.periods_need_covered_CT:
+        
+        # Filter CT periods based on time preference
+        filtered_ct_periods = _filter_periods_by_time_preference(
+            teacher_out_obj.periods_need_covered_CT,
+            teacher_out_obj.coverage_time_preference
+        )
+        for period in filtered_ct_periods:
             all_periods_to_cover_raw.append((period, True)) 
         
         all_periods_to_cover = sort_periods(all_periods_to_cover_raw) 

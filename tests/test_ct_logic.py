@@ -3,10 +3,9 @@ Unit tests for CT (Co-Teaching) logic
 """
 
 import pytest
-from main import _is_ct_entry, _find_coteacher_in_entry, check_coteachers, Teacher
+from main import _is_ct_entry, check_coteachers
 from tests.fixtures import (
-    CT_TEST_DATA, NAME_MATCHING_DATA, 
-    create_teacher_with_periods, create_test_schedule_with_real_teachers,
+    CT_TEST_DATA, create_teacher_with_periods, create_test_schedule_with_real_teachers,
     create_schedule_with_ct
 )
 

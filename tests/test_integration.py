@@ -5,9 +5,7 @@ Integration tests for end-to-end workflows
 import pytest
 import tempfile
 import os
-from tests.fixtures import sample_schedule_df, temp_schedule_file, temp_csv_schedule_file, temp_coverage_tracker
-import json
-from main import parseSchedule, check_coteachers, determineCoverage_and_save, Teacher
+from main import parseSchedule, check_coteachers, determineCoverage_and_save
 
 class TestEndToEndWorkflow:
     """Test complete workflow from file parsing to coverage calculation"""

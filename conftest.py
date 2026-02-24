@@ -2,7 +2,6 @@
 pytest configuration for Valley Teacher Coverage App
 """
 
-import pytest
 import sys
 import os
 
